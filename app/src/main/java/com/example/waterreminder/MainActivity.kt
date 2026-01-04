@@ -33,15 +33,12 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            scheduleNotifications()
-        }
+        if (isGranted) scheduleNotifications()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannel()
-        
         setContent {
             WaterReminderTheme {
                 Surface(
@@ -62,12 +59,8 @@ class MainActivity : ComponentActivity() {
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED -> {
-                    scheduleNotifications()
-                }
-                else -> {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+                ) == PackageManager.PERMISSION_GRANTED -> scheduleNotifications()
+                else -> requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         } else {
             scheduleNotifications()
@@ -95,9 +88,7 @@ class MainActivity : ComponentActivity() {
             set(Calendar.HOUR_OF_DAY, startHour)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
-            if (before(Calendar.getInstance())) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
+            if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
         }
 
         alarmManager.setRepeating(
@@ -114,21 +105,18 @@ class MainActivity : ComponentActivity() {
                 "water_reminder",
                 "Water Reminder",
                 NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notificări pentru consumul de apă"
-            }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+            ).apply { description = "Notificări pentru consumul de apă" }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("WaterReminder", Context.MODE_PRIVATE)
-    
+
     var glassesConsumed by remember { mutableIntStateOf(prefs.getInt("today_${getTodayDate()}", 0)) }
     var startHour by remember { mutableIntStateOf(prefs.getInt("startHour", 8)) }
     var endHour by remember { mutableIntStateOf(prefs.getInt("endHour", 22)) }
@@ -152,23 +140,15 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "$glassesConsumed pahare",
-                    style = MaterialTheme.typography.displayLarge
-                )
-                Text(
-                    text = "${glassesConsumed * 250} ml",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+                Text("$glassesConsumed pahare", style = MaterialTheme.typography.displayLarge)
+                Text("${glassesConsumed * 250} ml", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = {
                         glassesConsumed++
@@ -183,18 +163,11 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "⚙️ Setări Notificări",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
+                Text("⚙️ Setări Notificări", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
                 Text("Interval orar: $startHour:00 - $endHour:00")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -204,10 +177,7 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
                         Text("Start: $startHour:00", style = MaterialTheme.typography.bodySmall)
                         Slider(
                             value = startHour.toFloat(),
-                            onValueChange = { 
-                                startHour = it.toInt()
-                                prefs.edit().putInt("startHour", startHour).apply()
-                            },
+                            onValueChange = { startHour = it.toInt(); prefs.edit().putInt("startHour", startHour).apply() },
                             valueRange = 0f..23f,
                             steps = 22
                         )
@@ -217,31 +187,23 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
                         Text("Sfârșit: $endHour:00", style = MaterialTheme.typography.bodySmall)
                         Slider(
                             value = endHour.toFloat(),
-                            onValueChange = { 
-                                endHour = it.toInt()
-                                prefs.edit().putInt("endHour", endHour).apply()
-                            },
+                            onValueChange = { endHour = it.toInt(); prefs.edit().putInt("endHour", endHour).apply() },
                             valueRange = 0f..23f,
                             steps = 22
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
+                Spacer(Modifier.height(16.dp))
                 Text("Frecvență: la fiecare $intervalMinutes minute")
                 Slider(
                     value = intervalMinutes.toFloat(),
-                    onValueChange = { 
-                        intervalMinutes = it.toInt()
-                        prefs.edit().putInt("intervalMinutes", intervalMinutes).apply()
-                    },
+                    onValueChange = { intervalMinutes = it.toInt(); prefs.edit().putInt("intervalMinutes", intervalMinutes).apply() },
                     valueRange = 15f..240f,
                     steps = 14
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
+                Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = onScheduleNotifications,
                     modifier = Modifier.fillMaxWidth()
@@ -252,99 +214,7 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Astăzi") }
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Săptămână") }
-            )
-            Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
-                text = { Text("Lună") }
-            )
-        }
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                when (selectedTab) {
-                    0 -> StatisticsToday(prefs)
-                    1 -> StatisticsWeek(prefs)
-                    2 -> StatisticsMonth(prefs)
-                }
-            }
-        }
     }
-}
-
-@Composable
-fun StatisticsToday(prefs: android.content.SharedPreferences) {
-    val today = getTodayDate()
-    val glasses = prefs.getInt("today_$today", 0)
-    
-    Text("📊 Statistici pentru astăzi", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Total: $glasses pahare (${glasses * 250} ml)")
-}
-
-@Composable
-fun StatisticsWeek(prefs: android.content.SharedPreferences) {
-    val calendar = Calendar.getInstance()
-    var totalGlasses = 0
-    val dailyStats = mutableListOf<Pair<String, Int>>()
-    
-    for (i in 6 downTo 0) {
-        val date = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -i)
-        }
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
-        val glasses = prefs.getInt("today_$dateStr", 0)
-        totalGlasses += glasses
-        val dayName = SimpleDateFormat("EEE", Locale.getDefault()).format(date.time)
-        dailyStats.add(Pair(dayName, glasses))
-    }
-    
-    Text("📊 Statistici săptămână", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Total: $totalGlasses pahare (${totalGlasses * 250} ml)")
-    Spacer(Modifier.height(8.dp))
-    dailyStats.forEach { (day, glasses) ->
-        Text("$day: $glasses pahare", style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-fun StatisticsMonth(prefs: android.content.SharedPreferences) {
-    val calendar = Calendar.getInstance()
-    var totalGlasses = 0
-    
-    for (i in 29 downTo 0) {
-        val date = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -i)
-        }
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
-        val glasses = prefs.getInt("today_$dateStr", 0)
-        totalGlasses += glasses
-    }
-    
-    val average = totalGlasses / 30
-    
-    Text("📊 Statistici ultimele 30 zile", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Total: $totalGlasses pahare (${totalGlasses * 250} ml)")
-    Text("Medie zilnică: $average pahare (${average * 250} ml)")
 }
 
 fun getTodayDate(): String {
