@@ -1,25 +1,26 @@
-# 💧 Water Reminder - Aplicație Android
+# 💧 Water Reminder - Android App
 
-Aplicație pentru monitorizarea consumului zilnic de apă.
+An app to track your daily water intake.
 
-## 📱 Descarcă APK
+## 📱 Download APK
 
-Găsești ultima versiune în secțiunea [Releases](../../releases)
+You can find the latest version in the [Releases](../../releases) section.
 
-## ✨ Caracteristici
+## ✨ Features
 
-- ⏰ Notificări personalizabile
-- 📊 Statistici detaliate (zi/săptămână/lună)
-- 🌓 Dark/Light mode automat
-- 📈 Tracking 250ml per pahar
+- ⏰ Customizable notifications
+- 📊 Detailed statistics (day/week/month)
+- 🌓 Automatic Dark/Light mode
+- 📈 Tracks 250ml per glass
 
-## 🚀 Instalare
+## 🚀 Installation
 
-1. Descarcă `app-debug.apk` din Releases
-2. Permite instalare din surse necunoscute
-3. Instalează APK-ul
-4. Profită de aplicație!
+1. Download `app-debug.apk` from Releases
+2. Allow installation from unknown sources
+3. Install the APK
+4. Enjoy the app!
 
-## 👤 Autor
+## 👤 Author
 
 Dan Butuc
+
