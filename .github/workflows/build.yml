@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write   # NECESAR pentru creare Release
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -21,12 +21,27 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle   # cache robust, stabil
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install required Android SDK components
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
 
       - name: Make gradlew executable
         run: chmod +x gradlew
 
       - name: Build APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK artifact
@@ -34,7 +49,7 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error   # fail hard dacă build-ul nu produce APK
+          if-no-files-found: error
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main'
@@ -43,10 +58,3 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: Water Reminder v1.0.${{ github.run_number }}
           files: app/build/outputs/apk/debug/app-debug.apk
-          body: |
-            ## 💧 Water Reminder APK
-
-            Descarcă și instalează pe telefon!
-
-            ### Instalare:
-            1. Descarcă app-debug.apk
