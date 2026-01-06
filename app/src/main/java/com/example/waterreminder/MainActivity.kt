@@ -33,12 +33,15 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) scheduleNotifications()
+        if (isGranted) {
+            scheduleNotifications()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannel()
+        
         setContent {
             WaterReminderTheme {
                 Surface(
@@ -59,8 +62,12 @@ class MainActivity : ComponentActivity() {
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED -> scheduleNotifications()
-                else -> requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    scheduleNotifications()
+                }
+                else -> {
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
         } else {
             scheduleNotifications()
@@ -88,7 +95,9 @@ class MainActivity : ComponentActivity() {
             set(Calendar.HOUR_OF_DAY, startHour)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
-            if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
+            if (before(Calendar.getInstance())) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
         }
 
         alarmManager.setRepeating(
@@ -105,18 +114,21 @@ class MainActivity : ComponentActivity() {
                 "water_reminder",
                 "Water Reminder",
                 NotificationManager.IMPORTANCE_HIGH
-            ).apply { description = "Notificări pentru consumul de apă" }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            ).apply {
+                description = "Notifications for water consumption"
+            }
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("WaterReminder", Context.MODE_PRIVATE)
-
+    
     var glassesConsumed by remember { mutableIntStateOf(prefs.getInt("today_${getTodayDate()}", 0)) }
     var startHour by remember { mutableIntStateOf(prefs.getInt("startHour", 8)) }
     var endHour by remember { mutableIntStateOf(prefs.getInt("endHour", 22)) }
@@ -131,7 +143,7 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "💧 Consumul Meu de Apă",
+            text = "💧 My Water Intake",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(vertical = 16.dp)
         )
@@ -140,15 +152,23 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("$glassesConsumed pahare", style = MaterialTheme.typography.displayLarge)
-                Text("${glassesConsumed * 250} ml", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "$glassesConsumed glasses",
+                    style = MaterialTheme.typography.displayLarge
+                )
+                Text(
+                    text = "${glassesConsumed * 250} ml",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
                         glassesConsumed++
@@ -158,17 +178,24 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Am băut un pahar")
+                    Text("I drank a glass")
                 }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("⚙️ Setări Notificări", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
-                Text("Interval orar: $startHour:00 - $endHour:00")
+                Text(
+                    text = "⚙️ Notification Settings",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Text("Time interval: $startHour:00 - $endHour:00")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -177,44 +204,145 @@ fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
                         Text("Start: $startHour:00", style = MaterialTheme.typography.bodySmall)
                         Slider(
                             value = startHour.toFloat(),
-                            onValueChange = { startHour = it.toInt(); prefs.edit().putInt("startHour", startHour).apply() },
+                            onValueChange = { 
+                                startHour = it.toInt()
+                                prefs.edit().putInt("startHour", startHour).apply()
+                            },
                             valueRange = 0f..23f,
                             steps = 22
                         )
                     }
                     Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Sfârșit: $endHour:00", style = MaterialTheme.typography.bodySmall)
+                        Text("End: $endHour:00", style = MaterialTheme.typography.bodySmall)
                         Slider(
                             value = endHour.toFloat(),
-                            onValueChange = { endHour = it.toInt(); prefs.edit().putInt("endHour", endHour).apply() },
+                            onValueChange = { 
+                                endHour = it.toInt()
+                                prefs.edit().putInt("endHour", endHour).apply()
+                            },
                             valueRange = 0f..23f,
                             steps = 22
                         )
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
-                Text("Frecvență: la fiecare $intervalMinutes minute")
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Frequency: every $intervalMinutes minutes")
                 Slider(
                     value = intervalMinutes.toFloat(),
-                    onValueChange = { intervalMinutes = it.toInt(); prefs.edit().putInt("intervalMinutes", intervalMinutes).apply() },
+                    onValueChange = { 
+                        intervalMinutes = it.toInt()
+                        prefs.edit().putInt("intervalMinutes", intervalMinutes).apply()
+                    },
                     valueRange = 15f..240f,
                     steps = 14
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = onScheduleNotifications,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Notifications, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Activează Notificările")
+                    Text("Activate Notifications")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        TabRow(selectedTabIndex = selectedTab) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("Today") }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text("Week") }
+            )
+            Tab(
+                selected = selectedTab == 2,
+                onClick = { selectedTab = 2 },
+                text = { Text("Month") }
+            )
+        }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                when (selectedTab) {
+                    0 -> StatisticsToday(prefs)
+                    1 -> StatisticsWeek(prefs)
+                    2 -> StatisticsMonth(prefs)
                 }
             }
         }
     }
+}
+
+@Composable
+fun StatisticsToday(prefs: android.content.SharedPreferences) {
+    val today = getTodayDate()
+    val glasses = prefs.getInt("today_$today", 0)
+    
+    Text("📊 Statistics for today", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    Text("Total: $glasses glasses (${glasses * 250} ml)")
+}
+
+@Composable
+fun StatisticsWeek(prefs: android.content.SharedPreferences) {
+    var totalGlasses = 0
+    val dailyStats = mutableListOf<Pair<String, Int>>()
+    
+    for (i in 6 downTo 0) {
+        val date = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -i)
+        }
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
+        val glasses = prefs.getInt("today_$dateStr", 0)
+        totalGlasses += glasses
+        val dayName = SimpleDateFormat("EEE", Locale.getDefault()).format(date.time)
+        dailyStats.add(Pair(dayName, glasses))
+    }
+    
+    Text("📊 Weekly statistics", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    Text("Total: $totalGlasses glasses (${totalGlasses * 250} ml)")
+    Spacer(Modifier.height(8.dp))
+    dailyStats.forEach { (day, glasses) ->
+        Text("$day: $glasses glasses", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+fun StatisticsMonth(prefs: android.content.SharedPreferences) {
+    var totalGlasses = 0
+    
+    for (i in 29 downTo 0) {
+        val date = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -i)
+        }
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
+        val glasses = prefs.getInt("today_$dateStr", 0)
+        totalGlasses += glasses
+    }
+    
+    val average = totalGlasses / 30
+    
+    Text("📊 Last 30 days statistics", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+    Text("Total: $totalGlasses glasses (${totalGlasses * 250} ml)")
+    Text("Daily average: $average glasses (${average * 250} ml)")
 }
 
 fun getTodayDate(): String {
