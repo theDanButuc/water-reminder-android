@@ -38,16 +38,29 @@
     }
 
     fun showNotification(context: Context) {
+        // Creeaza un Intent pentru a deschide MainActivity
+        val contentIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        
+        val pendingContentIntent = PendingIntent.getActivity(
+            context,
+            0,
+            contentIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+
         val notification = NotificationCompat.Builder(context, "water_reminder_channel")
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // Asigura-te ca aceasta iconita exista
+            .setSmallIcon(R.drawable.ic_launcher_new)
             .setContentTitle("Time for Water!")
             .setContentText("Don't forget to stay hydrated. Drink a glass of water.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setContentIntent(pendingContentIntent) // Ataşează PendingIntent-ul aici
             .build()
 
         with(NotificationManagerCompat.from(context)) {
-            // channelId-ul trebuie sa fie acelasi cu cel creat in Application class
             notify(NOTIFICATION_ID, notification)
         }
     }

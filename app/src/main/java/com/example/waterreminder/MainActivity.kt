@@ -3,6 +3,8 @@
 
  import android.Manifest
  import android.app.AlarmManager
+ import android.app.NotificationChannel
+ import android.app.NotificationManager
  import android.content.Context
  import android.content.Intent
  import android.content.pm.PackageManager
@@ -47,7 +49,7 @@
 
  class MainActivity : ComponentActivity() {
 
-    private val viewModel: WaterViewModel by viewModels { // Adaugare viewModel
+    private val viewModel: WaterViewModel by viewModels {
         WaterViewModelFactory((application as WaterReminderApplication).repository)
     }
 
@@ -55,20 +57,34 @@
         super.onCreate(savedInstanceState)
         setContent {
             WaterReminderTheme {
-                PermissionWrapper(viewModel) // Pasare viewModel
+                PermissionWrapper(viewModel)
             }
         }
     }
  }
 
- // Clasa Application pentru a avea o singura instanta a bazei de date
  class WaterReminderApplication : android.app.Application() {
     val database by lazy { AppDatabase.getDatabase(this) }
     val repository by lazy { WaterRepository(database.waterIntakeDao()) }
+
+    override fun onCreate() {
+        super.onCreate()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Water Reminder"
+            val descriptionText = "Channel for water reminder notifications"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel("water_reminder_channel", name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
  }
 
  @Composable
- fun PermissionWrapper(viewModel: WaterViewModel) { // Primire viewModel
+ fun PermissionWrapper(viewModel: WaterViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -99,7 +115,7 @@
             LaunchedEffect(Unit) {
                 NotificationScheduler.scheduleInitialAlarm(context)
             }
-            MainScreen(viewModel) // Pasare viewModel
+            MainScreen(viewModel)
         }
         !hasNotificationPermission -> {
             PermissionRequestScreen(
@@ -176,7 +192,7 @@
 
  @OptIn(ExperimentalFoundationApi::class)
  @Composable
- fun MainScreen(viewModel: WaterViewModel) { // Primire viewModel
+ fun MainScreen(viewModel: WaterViewModel) {
     val tabs = listOf("Today", "Week", "Month")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
@@ -207,7 +223,7 @@
             when (page) {
                 0 -> TodayScreen(
                     totalMl = todayIntake,
-                    onDrinkGlassClick = { viewModel.addWaterIntake(250) } // Adauga 250ml
+                    onDrinkGlassClick = { viewModel.addWaterIntake(250) }
                 )
                 1 -> StatisticsChart(period = "Week", totalMl = weekIntake)
                 2 -> StatisticsChart(period = "Month", totalMl = monthIntake)
@@ -224,7 +240,7 @@
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ProgressCard(consumed = totalMl, goal = 2000) // Afiseaza progresul
+        ProgressCard(consumed = totalMl, goal = 2000)
         Spacer(modifier = Modifier.weight(1f))
         Button(onClick = onDrinkGlassClick) {
             Text(text = "I drank a glass (250ml)")
@@ -264,9 +280,7 @@
             )
             Spacer(modifier = Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = {
-                    progress
-                },
+                progress = progress, // CORRECTED
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
@@ -283,7 +297,7 @@
  }
 
  @Composable
- fun StatisticsChart(period: String, totalMl: Int) { // Primeste totalul de ml
+ fun StatisticsChart(period: String, totalMl: Int) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -305,7 +319,6 @@
     }
  }
 
- // ViewModel pentru a gestiona logica de business
  class WaterViewModel(private val repository: WaterRepository) : ViewModel() {
 
     private val coroutineScope = kotlinx.coroutines.MainScope()
@@ -318,15 +331,20 @@
     }.timeInMillis
 
     private val weekStart = Calendar.getInstance().apply {
+        firstDayOfWeek = Calendar.MONDAY
         set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
         set(Calendar.HOUR_OF_DAY, 0)
-        // ... (restul setarilor pentru inceputul saptamanii)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
     private val monthStart = Calendar.getInstance().apply {
         set(Calendar.DAY_OF_MONTH, 1)
         set(Calendar.HOUR_OF_DAY, 0)
-        // ... (restul setarilor pentru inceputul lunii)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
     val todayIntake: StateFlow<Int> = repository.getTodayIntake(todayStart)
@@ -348,7 +366,6 @@
     }
  }
 
- // Factory pentru ViewModel
  class WaterViewModelFactory(private val repository: WaterRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WaterViewModel::class.java)) {
