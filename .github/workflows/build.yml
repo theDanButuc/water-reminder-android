@@ -18,25 +18,16 @@
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
-        java-version: '17' # <--- THE FIX IS HERE
+        java-version: '17'
+
+    - name: Diagnose Image Files
+      run: file app/src/main/res/mipmap-*/*.png
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
     - name: Build with Gradle
       run: ./gradlew assembleRelease
-
-    - name: Sign APK
-      # This step is commented out because we don't have a secure way to handle keystores yet.
-      # The unsigned APK is fine for testing.
-      # run: |
-      #   echo "storePassword" > keystore.properties
-      #   echo "keyPassword" >> keystore.properties
-      #   echo "keyAlias" >> keystore.properties
-      #   echo "storeFile=release.keystore" >> keystore.properties
-      #   # The following command will fail if the keystore doesn't exist.
-      #   # We are building an unsigned APK for now.
-      run: echo "Skipping APK signing for now."
 
     - name: Create Release and Upload APK
       uses: ncipollo/release-action@v1
