@@ -20,6 +20,10 @@ android {
         }
     }
 
+    aaptOptions {
+        cruncherEnabled = false
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
