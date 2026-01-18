@@ -14,6 +14,7 @@
  import androidx.activity.compose.rememberLauncherForActivityResult
  import androidx.activity.compose.setContent
  import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.activity.viewModels
  import androidx.compose.foundation.ExperimentalFoundationApi
  import androidx.compose.foundation.layout.*
  import androidx.compose.foundation.pager.HorizontalPager
@@ -32,22 +33,42 @@
  import androidx.core.content.ContextCompat
  import androidx.lifecycle.Lifecycle
  import androidx.lifecycle.LifecycleEventObserver
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.ViewModelProvider
+ import com.example.waterreminder.data.AppDatabase
+ import com.example.waterreminder.data.WaterRepository
  import com.example.waterreminder.ui.theme.WaterReminderTheme
+ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.stateIn
  import kotlinx.coroutines.launch
+ import java.util.Calendar
 
  class MainActivity : ComponentActivity() {
+
+    private val viewModel: WaterViewModel by viewModels { // Adaugare viewModel
+        WaterViewModelFactory((application as WaterReminderApplication).repository)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             WaterReminderTheme {
-                PermissionWrapper()
+                PermissionWrapper(viewModel) // Pasare viewModel
             }
         }
     }
  }
 
+ // Clasa Application pentru a avea o singura instanta a bazei de date
+ class WaterReminderApplication : android.app.Application() {
+    val database by lazy { AppDatabase.getDatabase(this) }
+    val repository by lazy { WaterRepository(database.waterIntakeDao()) }
+ }
+
  @Composable
- fun PermissionWrapper() {
+ fun PermissionWrapper(viewModel: WaterViewModel) { // Primire viewModel
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -78,7 +99,7 @@
             LaunchedEffect(Unit) {
                 NotificationScheduler.scheduleInitialAlarm(context)
             }
-            MainScreen()
+            MainScreen(viewModel) // Pasare viewModel
         }
         !hasNotificationPermission -> {
             PermissionRequestScreen(
@@ -155,13 +176,14 @@
 
  @OptIn(ExperimentalFoundationApi::class)
  @Composable
- fun MainScreen() {
+ fun MainScreen(viewModel: WaterViewModel) { // Primire viewModel
     val tabs = listOf("Today", "Week", "Month")
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
 
-    // State is lifted to the common parent, MainScreen.
-    var glasses by remember { mutableStateOf(0) }
+    val todayIntake by viewModel.todayIntake.collectAsState()
+    val weekIntake by viewModel.weekIntake.collectAsState()
+    val monthIntake by viewModel.monthIntake.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = pagerState.currentPage) {
@@ -184,47 +206,36 @@
         ) { page ->
             when (page) {
                 0 -> TodayScreen(
-                    glasses = glasses,
-                    onDrinkGlassClick = { glasses++ } // Pass state and event down
+                    totalMl = todayIntake,
+                    onDrinkGlassClick = { viewModel.addWaterIntake(250) } // Adauga 250ml
                 )
-                1 -> StatisticsChart(period = "Week")
-                2 -> StatisticsChart(period = "Month")
+                1 -> StatisticsChart(period = "Week", totalMl = weekIntake)
+                2 -> StatisticsChart(period = "Month", totalMl = monthIntake)
             }
         }
     }
  }
 
  @Composable
- fun TodayScreen(glasses: Int, onDrinkGlassClick: () -> Unit) {
-    val mlPerGlass = 250
-
+ fun TodayScreen(totalMl: Int, onDrinkGlassClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        StatisticsToday(glasses = glasses, mlPerGlass = mlPerGlass)
+        ProgressCard(consumed = totalMl, goal = 2000) // Afiseaza progresul
         Spacer(modifier = Modifier.weight(1f))
-        Button(onClick = onDrinkGlassClick) { // Use the provided event handler
-            Text(text = "I drank a glass")
+        Button(onClick = onDrinkGlassClick) {
+            Text(text = "I drank a glass (250ml)")
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
  }
 
-
- @Composable
- fun StatisticsToday(glasses: Int, mlPerGlass: Int) {
-    val totalMl = glasses * mlPerGlass
-    val dailyGoal = 2000
-
-    ProgressCard(consumed = totalMl, goal = dailyGoal)
- }
-
  @Composable
  fun ProgressCard(consumed: Int, goal: Int) {
-    val progress = (consumed.toFloat() / goal.toFloat()).coerceIn(0f, 1f)
+    val progress = if (goal > 0) (consumed.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
 
     Card(
         modifier = Modifier
@@ -253,7 +264,9 @@
             )
             Spacer(modifier = Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = progress,
+                progress = {
+                    progress
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
@@ -270,12 +283,12 @@
  }
 
  @Composable
- fun StatisticsChart(period: String) {
+ fun StatisticsChart(period: String, totalMl: Int) { // Primeste totalul de ml
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = "$period statistics chart will be here.", fontSize = 18.sp)
+        Text(text = "Total for $period: $totalMl ml", fontSize = 18.sp)
     }
  }
 
@@ -289,5 +302,59 @@
             buttonText = "Grant",
             onClick = {}
         )
+    }
+ }
+
+ // ViewModel pentru a gestiona logica de business
+ class WaterViewModel(private val repository: WaterRepository) : ViewModel() {
+
+    private val coroutineScope = kotlinx.coroutines.MainScope()
+
+    private val todayStart = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    private val weekStart = Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+        set(Calendar.HOUR_OF_DAY, 0)
+        // ... (restul setarilor pentru inceputul saptamanii)
+    }.timeInMillis
+
+    private val monthStart = Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        // ... (restul setarilor pentru inceputul lunii)
+    }.timeInMillis
+
+    val todayIntake: StateFlow<Int> = repository.getTodayIntake(todayStart)
+        .map { list -> list.sumOf { it.amount } }
+        .stateIn(coroutineScope, SharingStarted.Lazily, 0)
+
+    val weekIntake: StateFlow<Int> = repository.getWeekIntake(weekStart)
+        .map { list -> list.sumOf { it.amount } }
+        .stateIn(coroutineScope, SharingStarted.Lazily, 0)
+
+    val monthIntake: StateFlow<Int> = repository.getMonthIntake(monthStart)
+        .map { list -> list.sumOf { it.amount } }
+        .stateIn(coroutineScope, SharingStarted.Lazily, 0)
+
+    fun addWaterIntake(amount: Int) {
+        coroutineScope.launch {
+            repository.addWaterIntake(amount)
+        }
+    }
+ }
+
+ // Factory pentru ViewModel
+ class WaterViewModelFactory(private val repository: WaterRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(WaterViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return WaterViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
  }
