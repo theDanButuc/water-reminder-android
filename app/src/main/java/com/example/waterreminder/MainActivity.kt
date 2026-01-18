@@ -17,6 +17,9 @@
  import androidx.activity.compose.setContent
  import androidx.activity.result.contract.ActivityResultContracts
  import androidx.activity.viewModels
+ import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.animation.core.tween
+ import androidx.compose.foundation.Canvas
  import androidx.compose.foundation.ExperimentalFoundationApi
  import androidx.compose.foundation.layout.*
  import androidx.compose.foundation.pager.HorizontalPager
@@ -25,7 +28,15 @@
  import androidx.compose.runtime.*
  import androidx.compose.ui.Alignment
  import androidx.compose.ui.Modifier
+ import androidx.compose.ui.geometry.CornerRadius
+ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.geometry.Size
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Path
+ import androidx.compose.ui.graphics.drawscope.clipPath
+ import androidx.compose.ui.graphics.toArgb
  import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
  import androidx.compose.ui.platform.LocalLifecycleOwner
  import androidx.compose.ui.text.font.FontWeight
  import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +49,7 @@
  import androidx.lifecycle.ViewModel
  import androidx.lifecycle.ViewModelProvider
  import com.example.waterreminder.data.AppDatabase
+ import com.example.waterreminder.data.WaterIntake
  import com.example.waterreminder.data.WaterRepository
  import com.example.waterreminder.ui.theme.WaterReminderTheme
  import kotlinx.coroutines.flow.SharingStarted
@@ -45,7 +57,9 @@
  import kotlinx.coroutines.flow.map
  import kotlinx.coroutines.flow.stateIn
  import kotlinx.coroutines.launch
- import java.util.Calendar
+ import java.text.SimpleDateFormat
+ import java.util.*
+ import kotlin.math.sin
 
  class MainActivity : ComponentActivity() {
 
@@ -200,6 +214,7 @@
     val todayIntake by viewModel.todayIntake.collectAsState()
     val weekIntake by viewModel.weekIntake.collectAsState()
     val monthIntake by viewModel.monthIntake.collectAsState()
+    val currentMonth by viewModel.currentMonth.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = pagerState.currentPage) {
@@ -225,8 +240,14 @@
                     totalMl = todayIntake,
                     onDrinkGlassClick = { viewModel.addWaterIntake(250) }
                 )
-                1 -> StatisticsChart(period = "Week", totalMl = weekIntake)
-                2 -> StatisticsChart(period = "Month", totalMl = monthIntake)
+                1 -> StatisticsScreen(
+                    title = "This Week's Progress",
+                    data = weekIntake
+                )
+                2 -> StatisticsScreen(
+                    title = "Month of $currentMonth",
+                    data = monthIntake
+                )
             }
         }
     }
@@ -238,57 +259,90 @@
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceAround
     ) {
-        ProgressCard(consumed = totalMl, goal = 2000)
-        Spacer(modifier = Modifier.weight(1f))
+        AnimatedWaterBottle(consumed = totalMl, goal = 2000)
+
         Button(onClick = onDrinkGlassClick) {
-            Text(text = "I drank a glass (250ml)")
+            Text(text = "I drank a glass (250ml)", fontSize = 16.sp)
         }
-        Spacer(modifier = Modifier.height(16.dp))
     }
  }
 
  @Composable
- fun ProgressCard(consumed: Int, goal: Int) {
+ fun AnimatedWaterBottle(consumed: Int, goal: Int) {
     val progress = if (goal > 0) (consumed.toFloat() / goal.toFloat()).coerceIn(0f, 1f) else 0f
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(24.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "💧 Daily Progress",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 1000, easing = androidx.compose.animation.core.LinearEasing)
+    )
+
+    Box(contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.size(200.dp, 300.dp)) { 
+            val bottleWidth = size.width * 0.6f
+            val bottleHeight = size.height * 0.9f
+            val cornerRadius = CornerRadius(x = 30f, y = 30f)
+
+            val bottlePath = Path().apply {
+                moveTo(center.x - bottleWidth / 2, center.y + bottleHeight / 2)
+                lineTo(center.x - bottleWidth / 2, center.y - bottleHeight / 2 + cornerRadius.y)
+                arcTo(
+                    rect = androidx.compose.ui.geometry.Rect(Offset(center.x - bottleWidth/2, center.y - bottleHeight/2), Size(cornerRadius.x, cornerRadius.y)),
+                    startAngleDegrees = 180f,
+                    sweepAngleDegrees = -90f,
+                    forceMoveTo = false
+                )
+                lineTo(center.x + bottleWidth / 2 - cornerRadius.x, center.y - bottleHeight / 2)
+                 arcTo(
+                    rect = androidx.compose.ui.geometry.Rect(Offset(center.x + bottleWidth/2 - cornerRadius.x, center.y - bottleHeight/2), Size(cornerRadius.x, cornerRadius.y)),
+                    startAngleDegrees = 90f,
+                    sweepAngleDegrees = -90f,
+                    forceMoveTo = false
+                )
+                lineTo(center.x + bottleWidth / 2, center.y + bottleHeight / 2)
+                close()
+            }
+
+            // Water Animation
+            clipPath(bottlePath) {
+                val waterHeight = bottleHeight * animatedProgress
+                val waveHeight = 10f
+                val waveLength = 150f
+
+                val waterPath = Path().apply {
+                    moveTo(center.x - bottleWidth, center.y + bottleHeight / 2)
+                    lineTo(center.x - bottleWidth, center.y + bottleHeight / 2 - waterHeight)
+
+                    if (waterHeight > 0) {
+                        for (i in 0..size.width.toInt() step 2) {
+                            val x = i.toFloat()
+                            val y = (sin((x + animatedProgress * size.width) * 2 * Math.PI / waveLength) * waveHeight).toFloat() + (center.y + bottleHeight/2 - waterHeight)
+                            lineTo(x, y)
+                        }
+                    }
+                    lineTo(center.x + bottleWidth, center.y + bottleHeight / 2)
+                    close()
+                }
+
+                drawPath(waterPath, color = Color(0xFF89CFF0))
+            }
+            // Draw Bottle Outline
+            drawPath(bottlePath, color = Color.Gray, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f))
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+             Text(
                 text = "$consumed ml / $goal ml",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = progress, // CORRECTED
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp)
-            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${(progress * 100).toInt()}%",
-                fontSize = 16.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.secondary
             )
@@ -297,27 +351,88 @@
  }
 
  @Composable
- fun StatisticsChart(period: String, totalMl: Int) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+ fun StatisticsScreen(title: String, data: List<ChartData>) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Total for $period: $totalMl ml", fontSize = 18.sp)
+        Text(
+            text = title,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+        if (data.isNotEmpty()) {
+            BarChart(data = data)
+        } else {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                 Text("No data available for this period yet.")
+            }
+        }
     }
  }
+
+ @Composable
+ fun BarChart(data: List<ChartData>) {
+    val maxIntake = data.maxOfOrNull { it.value } ?: 0
+    val barColor = MaterialTheme.colorScheme.primary
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .height(250.dp)
+        ) {
+            val density = LocalDensity.current
+            val textPaint = androidx.compose.ui.text.TextPaint().apply {
+                color = MaterialTheme.colorScheme.onSurface.toArgb()
+                textSize = density.run { 12.sp.toPx() }
+            }
+
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val barWidth = size.width / (data.size * 2)
+                val spaceBetweenBars = barWidth
+
+                data.forEachIndexed { index, chartData ->
+                    val barHeight = if (maxIntake > 0) (chartData.value / maxIntake.toFloat()) * size.height * 0.8f else 0f
+                    val startX = (index * (barWidth + spaceBetweenBars)) + spaceBetweenBars / 2
+
+                    drawRect(
+                        color = barColor,
+                        topLeft = Offset(x = startX, y = size.height - barHeight),
+                        size = Size(width = barWidth, height = barHeight)
+                    )
+
+                    drawContext.canvas.nativeCanvas.drawText(
+                        chartData.label,
+                        startX + barWidth / 2,
+                        size.height,
+                        textPaint.apply {
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                    )
+                }
+            }
+        }
+    }
+ }
+
 
  @Preview(showBackground = true)
  @Composable
  fun DefaultPreview() {
     WaterReminderTheme {
-        PermissionRequestScreen(
-            title = "Permission Required",
-            text = "This is a preview of how the permission request screen will look.",
-            buttonText = "Grant",
-            onClick = {}
-        )
+        AnimatedWaterBottle(consumed = 1250, goal = 2000)
     }
  }
+
+ data class ChartData(val label: String, val value: Int)
 
  class WaterViewModel(private val repository: WaterRepository) : ViewModel() {
 
@@ -346,23 +461,67 @@
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
+    
+    val currentMonth: StateFlow<String> = kotlinx.coroutines.flow.MutableStateFlow(
+        SimpleDateFormat("MMMM", Locale.getDefault()).format(Date(monthStart))
+    ).stateIn(coroutineScope, SharingStarted.Lazily, "")
 
     val todayIntake: StateFlow<Int> = repository.getTodayIntake(todayStart)
         .map { list -> list.sumOf { it.amount } }
         .stateIn(coroutineScope, SharingStarted.Lazily, 0)
 
-    val weekIntake: StateFlow<Int> = repository.getWeekIntake(weekStart)
-        .map { list -> list.sumOf { it.amount } }
-        .stateIn(coroutineScope, SharingStarted.Lazily, 0)
+    val weekIntake: StateFlow<List<ChartData>> = repository.getWeekIntake(weekStart)
+        .map { transformToWeeklyChartData(it) }
+        .stateIn(coroutineScope, SharingStarted.Lazily, emptyList())
 
-    val monthIntake: StateFlow<Int> = repository.getMonthIntake(monthStart)
-        .map { list -> list.sumOf { it.amount } }
-        .stateIn(coroutineScope, SharingStarted.Lazily, 0)
+    val monthIntake: StateFlow<List<ChartData>> = repository.getMonthIntake(monthStart)
+        .map { transformToMonthlyChartData(it) }
+        .stateIn(coroutineScope, SharingStarted.Lazily, emptyList())
 
     fun addWaterIntake(amount: Int) {
         coroutineScope.launch {
             repository.addWaterIntake(amount)
         }
+    }
+
+    private fun transformToWeeklyChartData(intakeList: List<WaterIntake>): List<ChartData> {
+        val calendar = Calendar.getInstance()
+        calendar.firstDayOfWeek = Calendar.MONDAY
+        val dayFormat = SimpleDateFormat("E", Locale.getDefault()) // "Mon", "Tue"
+
+        val dayNames = (0..6).map {
+            calendar.time = Date(weekStart)
+            calendar.add(Calendar.DAY_OF_WEEK, it)
+            dayFormat.format(calendar.time)
+        }
+
+        val weeklyData = dayNames.associateWith { 0 }.toMutableMap()
+
+        intakeList.forEach { intake ->
+            val day = dayFormat.format(Date(intake.timestamp))
+            if (weeklyData.containsKey(day)) {
+                weeklyData[day] = (weeklyData[day] ?: 0) + intake.amount
+            }
+        }
+        return dayNames.map { ChartData(it, weeklyData[it] ?: 0) }
+    }
+
+    private fun transformToMonthlyChartData(intakeList: List<WaterIntake>): List<ChartData> {
+        val calendar = Calendar.getInstance()
+        calendar.time = Date(monthStart)
+        val maxDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+        val monthlyData = (1..maxDays).associate {
+            it.toString() to 0
+        }.toMutableMap()
+        
+        val dayFormat = SimpleDateFormat("d", Locale.getDefault())
+
+        intakeList.forEach { intake ->
+            val dayOfMonth = dayFormat.format(Date(intake.timestamp))
+            monthlyData[dayOfMonth] = (monthlyData[dayOfMonth] ?: 0) + intake.amount
+        }
+        return monthlyData.map { ChartData(it.key, it.value) }
     }
  }
 
