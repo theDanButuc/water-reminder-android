@@ -34,10 +34,9 @@
  import androidx.compose.ui.graphics.Color
  import androidx.compose.ui.graphics.Path
  import androidx.compose.ui.graphics.drawscope.clipPath
- import androidx.compose.ui.graphics.toArgb
  import androidx.compose.ui.platform.LocalContext
- import androidx.compose.ui.platform.LocalDensity
  import androidx.compose.ui.platform.LocalLifecycleOwner
+ import androidx.compose.ui.text.* 
  import androidx.compose.ui.text.font.FontWeight
  import androidx.compose.ui.text.style.TextAlign
  import androidx.compose.ui.tooling.preview.Preview
@@ -204,7 +203,7 @@
     }
  }
 
- @OptIn(ExperimentalFoundationApi::class)
+ @OptIn(ExperimentalFoundationApi::class, ExperimentalTextApi::class)
  @Composable
  fun MainScreen(viewModel: WaterViewModel) {
     val tabs = listOf("Today", "Week", "Month")
@@ -276,7 +275,8 @@
 
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 1000, easing = androidx.compose.animation.core.LinearEasing)
+        animationSpec = tween(durationMillis = 1000, easing = androidx.compose.animation.core.LinearEasing),
+        label = ""
     )
 
     Box(contentAlignment = Alignment.Center) {
@@ -350,6 +350,7 @@
     }
  }
 
+ @OptIn(ExperimentalTextApi::class)
  @Composable
  fun StatisticsScreen(title: String, data: List<ChartData>) {
     Column(
@@ -374,10 +375,13 @@
     }
  }
 
+ @OptIn(ExperimentalTextApi::class)
  @Composable
  fun BarChart(data: List<ChartData>) {
     val maxIntake = data.maxOfOrNull { it.value } ?: 0
     val barColor = MaterialTheme.colorScheme.primary
+    val textMeasurer = rememberTextMeasurer()
+    val textColor = MaterialTheme.colorScheme.onSurface
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -389,12 +393,6 @@
                 .fillMaxWidth()
                 .height(250.dp)
         ) {
-            val density = LocalDensity.current
-            val textPaint = androidx.compose.ui.text.TextPaint().apply {
-                color = MaterialTheme.colorScheme.onSurface.toArgb()
-                textSize = density.run { 12.sp.toPx() }
-            }
-
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val barWidth = size.width / (data.size * 2)
                 val spaceBetweenBars = barWidth
@@ -409,13 +407,17 @@
                         size = Size(width = barWidth, height = barHeight)
                     )
 
-                    drawContext.canvas.nativeCanvas.drawText(
-                        chartData.label,
-                        startX + barWidth / 2,
-                        size.height,
-                        textPaint.apply {
-                            textAlign = android.graphics.Paint.Align.CENTER
-                        }
+                    val textLayoutResult = textMeasurer.measure(
+                        text = AnnotatedString(chartData.label),
+                        style = TextStyle(fontSize = 12.sp, color = textColor)
+                    )
+
+                    drawText(
+                        textLayoutResult = textLayoutResult,
+                        topLeft = Offset(
+                            x = startX + barWidth / 2 - textLayoutResult.size.width / 2,
+                            y = size.height + 4.dp.toPx() - textLayoutResult.size.height
+                        )
                     )
                 }
             }
