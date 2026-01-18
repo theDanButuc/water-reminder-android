@@ -14,7 +14,10 @@
  import androidx.activity.compose.rememberLauncherForActivityResult
  import androidx.activity.compose.setContent
  import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.foundation.ExperimentalFoundationApi
  import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.pager.HorizontalPager
+ import androidx.compose.foundation.pager.rememberPagerState
  import androidx.compose.material3.*
  import androidx.compose.runtime.*
  import androidx.compose.ui.Alignment
@@ -30,14 +33,13 @@
  import androidx.lifecycle.Lifecycle
  import androidx.lifecycle.LifecycleEventObserver
  import com.example.waterreminder.ui.theme.WaterReminderTheme
- import com.google.accompanist.pager.*
+ import kotlinx.coroutines.launch
 
  class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             WaterReminderTheme {
-                // The new entry point that handles permissions first
                 PermissionWrapper()
             }
         }
@@ -49,11 +51,9 @@
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // State holders for permissions
     var hasNotificationPermission by remember { mutableStateOf(checkNotificationPermission(context)) }
     var hasExactAlarmPermission by remember { mutableStateOf(checkExactAlarmPermission(context)) }
 
-    // Launcher for the standard notification permission request
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -61,8 +61,6 @@
         }
     )
 
-    // This effect observes the lifecycle to re-check the exact alarm permission
-    // when the user returns to the app from the settings screen.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -76,16 +74,12 @@
     }
 
     when {
-        // If both permissions are granted, show the main app screen
         hasNotificationPermission && hasExactAlarmPermission -> {
             LaunchedEffect(Unit) {
-                // Schedule the alarm only after all permissions are granted
                 NotificationScheduler.scheduleInitialAlarm(context)
             }
             MainScreen()
         }
-
-        // If notification permission is missing, show its request screen
         !hasNotificationPermission -> {
             PermissionRequestScreen(
                 title = "Notification Permission Needed",
@@ -95,14 +89,11 @@
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
-                        // Automatically granted on older versions
                         hasNotificationPermission = true
                     }
                 }
             )
         }
-
-        // If exact alarm permission is missing, show its request screen
         !hasExactAlarmPermission -> {
             PermissionRequestScreen(
                 title = "Precise Alarms Required",
@@ -111,12 +102,10 @@
                 onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                            // Takes the user directly to the app's permission page
                             data = Uri.fromParts("package", context.packageName, null)
                         }
                         context.startActivity(intent)
                     } else {
-                        // Not a special permission on older versions
                         hasExactAlarmPermission = true
                     }
                 }
@@ -144,7 +133,6 @@
     }
  }
 
- // Helper function to check for notification permission
  private fun checkNotificationPermission(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         ContextCompat.checkSelfPermission(
@@ -152,53 +140,44 @@
             Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
     } else {
-        true // Granted by default on older Android versions
+        true
     }
  }
 
- // Helper function to check for exact alarm permission
  private fun checkExactAlarmPermission(context: Context): Boolean {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         alarmManager.canScheduleExactAlarms()
     } else {
-        true // Not a special permission on older Android versions
+        true
     }
  }
 
-
- // --- The rest of the app's UI remains the same ---
-
- @OptIn(ExperimentalPagerApi::class)
+ @OptIn(ExperimentalFoundationApi::class)
  @Composable
  fun MainScreen() {
-    val pagerState = rememberPagerState()
     val tabs = listOf("Today", "Week", "Month")
-    // TODO: The pager is not swipeable, and tab clicks are not implemented yet.
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
-            selectedTabIndex = pagerState.currentPage,
-            indicator = { tabPositions ->
-                TabRowDefaults.Indicator(
-                    Modifier.pagerTabIndicatorOffset(pagerState, tabPositions)
-                )
-            }
-        ) {
+        TabRow(selectedTabIndex = pagerState.currentPage) {
             tabs.forEachIndexed { index, title ->
                 Tab(
                     text = { Text(title) },
                     selected = pagerState.currentPage == index,
-                    onClick = { /* TODO: Implement click listener */ }
+                    onClick = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(index)
+                        }
+                    }
                 )
             }
         }
 
         HorizontalPager(
-            count = tabs.size,
             state = pagerState,
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top
+            modifier = Modifier.fillMaxWidth().weight(1f)
         ) { page ->
             when (page) {
                 0 -> StatisticsScreen(period = "Today")
@@ -212,7 +191,7 @@
  @Composable
  fun StatisticsScreen(period: String) {
     var glasses by remember { mutableStateOf(0) }
-    val mlPerGlass = 250 // 250 ml per glass
+    val mlPerGlass = 250
 
     Column(
         modifier = Modifier
@@ -220,28 +199,23 @@
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        // The content of the screen is now at the top
         if (period == "Today") {
             StatisticsToday(glasses = glasses, mlPerGlass = mlPerGlass)
         } else {
             StatisticsChart(period = period)
         }
-
-        Spacer(modifier = Modifier.weight(1f)) // Pushes the button to the bottom
-
+        Spacer(modifier = Modifier.weight(1f))
         Button(onClick = { glasses++ }) {
             Text(text = "I drank a glass")
         }
-
-        Spacer(modifier = Modifier.height(16.dp)) // Some padding from the bottom edge
+        Spacer(modifier = Modifier.height(16.dp))
     }
  }
 
  @Composable
  fun StatisticsToday(glasses: Int, mlPerGlass: Int) {
     val totalMl = glasses * mlPerGlass
-    val dailyGoal = 2000 // 2000 ml daily goal
+    val dailyGoal = 2000
 
     ProgressCard(consumed = totalMl, goal = dailyGoal)
  }
@@ -253,7 +227,7 @@
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp), // Add padding to the top
+            .padding(top = 16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
@@ -268,27 +242,21 @@
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
             Text(
                 text = "$consumed ml / $goal ml",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             LinearProgressIndicator(
                 progress = progress,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
             )
-
             Spacer(modifier = Modifier.height(4.dp))
-
             Text(
                 text = "${(progress * 100).toInt()}%",
                 fontSize = 16.sp,
@@ -299,10 +267,8 @@
     }
  }
 
-
  @Composable
  fun StatisticsChart(period: String) {
-    // Placeholder for week/month charts
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -315,7 +281,6 @@
  @Composable
  fun DefaultPreview() {
     WaterReminderTheme {
-        // Preview the permission screen for easy UI checks
         PermissionRequestScreen(
             title = "Permission Required",
             text = "This is a preview of how the permission request screen will look.",
