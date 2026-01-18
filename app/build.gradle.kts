@@ -7,6 +7,12 @@ android {
     namespace = "com.example.waterreminder"
     compileSdk = 34
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.waterreminder"
         minSdk = 24
@@ -27,6 +33,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

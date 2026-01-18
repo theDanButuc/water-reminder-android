@@ -27,12 +27,21 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleDebug
 
+    - name: Define Release and APK names
+      id: set_names
+      run: |
+        echo "release_title=Water Reminder v2.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+        echo "apk_name=Water-Reminder-v2.0.${{ github.run_number }}.apk" >> $GITHUB_OUTPUT
+
+    - name: Rename APK
+      run: mv app/build/outputs/apk/debug/app-debug.apk ${{ steps.set_names.outputs.apk_name }}
+
     - name: Upload APK as Release Artifact
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "app/build/outputs/apk/debug/app-debug.apk"
+        artifacts: "${{ steps.set_names.outputs.apk_name }}"
         token: ${{ secrets.GITHUB_TOKEN }}
-        tag: "debug-${{ github.run_number }}"
-        name: "Debug Build ${{ github.run_number }}"
-        body: "This is a debug build. Download and install the app-debug.apk file."
+        tag: "v2.0.${{ github.run_number }}"
+        name: "${{ steps.set_names.outputs.release_title }}"
+        body: "APK pentru instalare. Creat de pe urma acestui [commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})."
         allowUpdates: true
