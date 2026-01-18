@@ -1,350 +1,326 @@
-package com.example.waterreminder
 
-import android.Manifest
-import android.app.AlarmManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import com.example.waterreminder.ui.theme.WaterReminderTheme
-import java.text.SimpleDateFormat
-import java.util.*
+ package com.example.waterreminder
 
-class MainActivity : ComponentActivity() {
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            scheduleNotifications()
-        }
-    }
+ import android.Manifest
+ import android.app.AlarmManager
+ import android.content.Context
+ import android.content.Intent
+ import android.content.pm.PackageManager
+ import android.net.Uri
+ import android.os.Build
+ import android.os.Bundle
+ import android.provider.Settings
+ import androidx.activity.ComponentActivity
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.compose.setContent
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.*
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalLifecycleOwner
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.tooling.preview.Preview
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import androidx.core.content.ContextCompat
+ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.LifecycleEventObserver
+ import com.example.waterreminder.ui.theme.WaterReminderTheme
+ import com.google.accompanist.pager.*
 
+ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        createNotificationChannel()
-        
         setContent {
             WaterReminderTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    WaterTrackerScreen(
-                        onScheduleNotifications = { checkPermissionAndSchedule() }
-                    )
-                }
+                // The new entry point that handles permissions first
+                PermissionWrapper()
             }
         }
     }
+ }
 
-    private fun checkPermissionAndSchedule() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED -> {
-                    scheduleNotifications()
-                }
-                else -> {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        } else {
-            scheduleNotifications()
-        }
-    }
-
-    private fun scheduleNotifications() {
-        val prefs = getSharedPreferences("WaterReminder", Context.MODE_PRIVATE)
-        val startHour = prefs.getInt("startHour", 8)
-        val endHour = prefs.getInt("endHour", 22)
-        val intervalMinutes = prefs.getInt("intervalMinutes", 60)
-
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, WaterReminderReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        alarmManager.cancel(pendingIntent)
-
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, startHour)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            if (before(Calendar.getInstance())) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
-        }
-
-        alarmManager.setRepeating(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            (intervalMinutes * 60 * 1000).toLong(),
-            pendingIntent
-        )
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "water_reminder",
-                "Water Reminder",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications for water consumption"
-            }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun WaterTrackerScreen(onScheduleNotifications: () -> Unit) {
+ @Composable
+ fun PermissionWrapper() {
     val context = LocalContext.current
-    val prefs = context.getSharedPreferences("WaterReminder", Context.MODE_PRIVATE)
-    
-    var glassesConsumed by remember { mutableIntStateOf(prefs.getInt("today_${getTodayDate()}", 0)) }
-    var startHour by remember { mutableIntStateOf(prefs.getInt("startHour", 8)) }
-    var endHour by remember { mutableIntStateOf(prefs.getInt("endHour", 22)) }
-    var intervalMinutes by remember { mutableIntStateOf(prefs.getInt("intervalMinutes", 60)) }
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // State holders for permissions
+    var hasNotificationPermission by remember { mutableStateOf(checkNotificationPermission(context)) }
+    var hasExactAlarmPermission by remember { mutableStateOf(checkExactAlarmPermission(context)) }
+
+    // Launcher for the standard notification permission request
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            hasNotificationPermission = isGranted
+        }
+    )
+
+    // This effect observes the lifecycle to re-check the exact alarm permission
+    // when the user returns to the app from the settings screen.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasExactAlarmPermission = checkExactAlarmPermission(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    when {
+        // If both permissions are granted, show the main app screen
+        hasNotificationPermission && hasExactAlarmPermission -> {
+            LaunchedEffect(Unit) {
+                // Schedule the alarm only after all permissions are granted
+                NotificationScheduler.scheduleInitialAlarm(context)
+            }
+            MainScreen()
+        }
+
+        // If notification permission is missing, show its request screen
+        !hasNotificationPermission -> {
+            PermissionRequestScreen(
+                title = "Notification Permission Needed",
+                text = "To remind you to drink water, please grant the notification permission. It's essential for the app to work correctly.",
+                buttonText = "Grant Permission",
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        // Automatically granted on older versions
+                        hasNotificationPermission = true
+                    }
+                }
+            )
+        }
+
+        // If exact alarm permission is missing, show its request screen
+        !hasExactAlarmPermission -> {
+            PermissionRequestScreen(
+                title = "Precise Alarms Required",
+                text = "For timely reminders, the app needs permission to schedule precise alarms. Please enable this permission in the next screen to ensure you get notified on the hour.",
+                buttonText = "Open Settings",
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                            // Takes the user directly to the app's permission page
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+                        context.startActivity(intent)
+                    } else {
+                        // Not a special permission on older versions
+                        hasExactAlarmPermission = true
+                    }
+                }
+            )
+        }
+    }
+ }
+
+ @Composable
+ fun PermissionRequestScreen(title: String, text: String, buttonText: String, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = title, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = text, textAlign = TextAlign.Center, fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+            Text(text = buttonText, fontSize = 16.sp)
+        }
+    }
+ }
+
+ // Helper function to check for notification permission
+ private fun checkNotificationPermission(context: Context): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true // Granted by default on older Android versions
+    }
+ }
+
+ // Helper function to check for exact alarm permission
+ private fun checkExactAlarmPermission(context: Context): Boolean {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        alarmManager.canScheduleExactAlarms()
+    } else {
+        true // Not a special permission on older Android versions
+    }
+ }
+
+
+ // --- The rest of the app's UI remains the same ---
+
+ @OptIn(ExperimentalPagerApi::class)
+ @Composable
+ fun MainScreen() {
+    val pagerState = rememberPagerState()
+    val tabs = listOf("Today", "Week", "Month")
+    // TODO: The pager is not swipeable, and tab clicks are not implemented yet.
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = pagerState.currentPage,
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    Modifier.pagerTabIndicatorOffset(pagerState, tabPositions)
+                )
+            }
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    text = { Text(title) },
+                    selected = pagerState.currentPage == index,
+                    onClick = { /* TODO: Implement click listener */ }
+                )
+            }
+        }
+
+        HorizontalPager(
+            count = tabs.size,
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
+        ) { page ->
+            when (page) {
+                0 -> StatisticsScreen(period = "Today")
+                1 -> StatisticsScreen(period = "Week")
+                2 -> StatisticsScreen(period = "Month")
+            }
+        }
+    }
+ }
+
+ @Composable
+ fun StatisticsScreen(period: String) {
+    var glasses by remember { mutableStateOf(0) }
+    val mlPerGlass = 250 // 250 ml per glass
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "💧 My Water Intake",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(vertical = 16.dp)
+
+        // The content of the screen is now at the top
+        if (period == "Today") {
+            StatisticsToday(glasses = glasses, mlPerGlass = mlPerGlass)
+        } else {
+            StatisticsChart(period = period)
+        }
+
+        Spacer(modifier = Modifier.weight(1f)) // Pushes the button to the bottom
+
+        Button(onClick = { glasses++ }) {
+            Text(text = "I drank a glass")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp)) // Some padding from the bottom edge
+    }
+ }
+
+ @Composable
+ fun StatisticsToday(glasses: Int, mlPerGlass: Int) {
+    val totalMl = glasses * mlPerGlass
+    val dailyGoal = 2000 // 2000 ml daily goal
+
+    ProgressCard(consumed = totalMl, goal = dailyGoal)
+ }
+
+ @Composable
+ fun ProgressCard(consumed: Int, goal: Int) {
+    val progress = (consumed.toFloat() / goal.toFloat()).coerceIn(0f, 1f)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp), // Add padding to the top
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(24.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "💧 Daily Progress",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "$consumed ml / $goal ml",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "${(progress * 100).toInt()}%",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+    }
+ }
+
+
+ @Composable
+ fun StatisticsChart(period: String) {
+    // Placeholder for week/month charts
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = "$period statistics chart will be here.", fontSize = 18.sp)
+    }
+ }
+
+ @Preview(showBackground = true)
+ @Composable
+ fun DefaultPreview() {
+    WaterReminderTheme {
+        // Preview the permission screen for easy UI checks
+        PermissionRequestScreen(
+            title = "Permission Required",
+            text = "This is a preview of how the permission request screen will look.",
+            buttonText = "Grant",
+            onClick = {}
         )
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "$glassesConsumed glasses",
-                    style = MaterialTheme.typography.displayLarge
-                )
-                Text(
-                    text = "${glassesConsumed * 250} ml",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        glassesConsumed++
-                        prefs.edit().putInt("today_${getTodayDate()}", glassesConsumed).apply()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("I drank a glass")
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "⚙️ Notification Settings",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Text("Time interval: $startHour:00 - $endHour:00")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Start: $startHour:00", style = MaterialTheme.typography.bodySmall)
-                        Slider(
-                            value = startHour.toFloat(),
-                            onValueChange = { 
-                                startHour = it.toInt()
-                                prefs.edit().putInt("startHour", startHour).apply()
-                            },
-                            valueRange = 0f..23f,
-                            steps = 22
-                        )
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("End: $endHour:00", style = MaterialTheme.typography.bodySmall)
-                        Slider(
-                            value = endHour.toFloat(),
-                            onValueChange = { 
-                                endHour = it.toInt()
-                                prefs.edit().putInt("endHour", endHour).apply()
-                            },
-                            valueRange = 0f..23f,
-                            steps = 22
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text("Frequency: every $intervalMinutes minutes")
-                Slider(
-                    value = intervalMinutes.toFloat(),
-                    onValueChange = { 
-                        intervalMinutes = it.toInt()
-                        prefs.edit().putInt("intervalMinutes", intervalMinutes).apply()
-                    },
-                    valueRange = 15f..240f,
-                    steps = 14
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = onScheduleNotifications,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Notifications, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Activate Notifications")
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Today") }
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Week") }
-            )
-            Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
-                text = { Text("Month") }
-            )
-        }
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                when (selectedTab) {
-                    0 -> StatisticsToday(prefs)
-                    1 -> StatisticsWeek(prefs)
-                    2 -> StatisticsMonth(prefs)
-                }
-            }
-        }
     }
-}
-
-@Composable
-fun StatisticsToday(prefs: android.content.SharedPreferences) {
-    val today = getTodayDate()
-    val glasses = prefs.getInt("today_$today", 0)
-    
-    Text("📊 Statistics for today", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Total: $glasses glasses (${glasses * 250} ml)")
-}
-
-@Composable
-fun StatisticsWeek(prefs: android.content.SharedPreferences) {
-    var totalGlasses = 0
-    val dailyStats = mutableListOf<Pair<String, Int>>()
-    
-    for (i in 6 downTo 0) {
-        val date = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -i)
-        }
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
-        val glasses = prefs.getInt("today_$dateStr", 0)
-        totalGlasses += glasses
-        val dayName = SimpleDateFormat("EEE", Locale.getDefault()).format(date.time)
-        dailyStats.add(Pair(dayName, glasses))
-    }
-    
-    Text("📊 Weekly statistics", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Total: $totalGlasses glasses (${totalGlasses * 250} ml)")
-    Spacer(Modifier.height(8.dp))
-    dailyStats.forEach { (day, glasses) ->
-        Text("$day: $glasses glasses", style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-fun StatisticsMonth(prefs: android.content.SharedPreferences) {
-    var totalGlasses = 0
-    
-    for (i in 29 downTo 0) {
-        val date = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -i)
-        }
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
-        val glasses = prefs.getInt("today_$dateStr", 0)
-        totalGlasses += glasses
-    }
-    
-    val average = totalGlasses / 30
-    
-    Text("📊 Last 30 days statistics", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Total: $totalGlasses glasses (${totalGlasses * 250} ml)")
-    Text("Daily average: $average glasses (${average * 250} ml)")
-}
-
-fun getTodayDate(): String {
-    return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-}
+ }
