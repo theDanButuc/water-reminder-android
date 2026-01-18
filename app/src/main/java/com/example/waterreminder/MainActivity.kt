@@ -160,6 +160,9 @@
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
 
+    // State is lifted to the common parent, MainScreen.
+    var glasses by remember { mutableStateOf(0) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = pagerState.currentPage) {
             tabs.forEachIndexed { index, title ->
@@ -180,17 +183,19 @@
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) { page ->
             when (page) {
-                0 -> StatisticsScreen(period = "Today")
-                1 -> StatisticsScreen(period = "Week")
-                2 -> StatisticsScreen(period = "Month")
+                0 -> TodayScreen(
+                    glasses = glasses,
+                    onDrinkGlassClick = { glasses++ } // Pass state and event down
+                )
+                1 -> StatisticsChart(period = "Week")
+                2 -> StatisticsChart(period = "Month")
             }
         }
     }
  }
 
  @Composable
- fun StatisticsScreen(period: String) {
-    var glasses by remember { mutableStateOf(0) }
+ fun TodayScreen(glasses: Int, onDrinkGlassClick: () -> Unit) {
     val mlPerGlass = 250
 
     Column(
@@ -199,18 +204,15 @@
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (period == "Today") {
-            StatisticsToday(glasses = glasses, mlPerGlass = mlPerGlass)
-        } else {
-            StatisticsChart(period = period)
-        }
+        StatisticsToday(glasses = glasses, mlPerGlass = mlPerGlass)
         Spacer(modifier = Modifier.weight(1f))
-        Button(onClick = { glasses++ }) {
+        Button(onClick = onDrinkGlassClick) { // Use the provided event handler
             Text(text = "I drank a glass")
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
  }
+
 
  @Composable
  fun StatisticsToday(glasses: Int, mlPerGlass: Int) {
