@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Reminder - Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .phone-frame {
+            width: 375px;
+            height: 812px;
+            background: #000;
+            border-radius: 40px;
+            padding: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 30px;
+            background: #000;
+            border-radius: 0 0 20px 20px;
+            z-index: 10;
+        }
+
+        .screen {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border-radius: 30px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .screen.dark {
+            background: #121212;
+            color: #e1e1e1;
+        }
+
+        .status-bar {
+            height: 44px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .app-content {
+            padding: 16px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 16px 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .main-card {
+            background: #e3f2fd;
+            border-radius: 16px;
+            padding: 24px;
+            margin: 16px 0;
+            text-align: center;
+        }
+
+        .dark .main-card {
+            background: #1e3a5f;
+        }
+
+        .glass-count {
+            font-size: 56px;
+            font-weight: 700;
+            color: #1976d2;
+            margin: 10px 0;
+        }
+
+        .dark .glass-count {
+            color: #64b5f6;
+        }
+
+        .ml-count {
+            font-size: 24px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .dark .ml-count {
+            color: #aaa;
+        }
+
+        .btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #1565c0;
+        }
+
+        .dark .btn {
+            background: #64b5f6;
+            color: #000;
+        }
+
+        .settings-card {
+            background: #f5f5f5;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 24px 0;
+        }
+
+        .dark .settings-card {
+            background: #1e1e1e;
+        }
+
+        .settings-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setting-item {
+            margin: 16px 0;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .dark .setting-label {
+            color: #aaa;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .dark .slider {
+            background: #444;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #1976d2;
+            cursor: pointer;
+        }
+
+        .dark .slider::-webkit-slider-thumb {
+            background: #64b5f6;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin: 24px 0 16px 0;
+        }
+
+        .dark .tabs {
+            border-bottom-color: #444;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            font-weight: 500;
+        }
+
+        .tab.active {
+            border-bottom-color: #1976d2;
+            color: #1976d2;
+        }
+
+        .dark .tab.active {
+            border-bottom-color: #64b5f6;
+            color: #64b5f6;
+        }
+
+        .stats-card {
+            background: #f5f5f5;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+
+        .dark .stats-card {
+            background: #1e1e1e;
+        }
+
+        .stat-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .dark .stat-item {
+            border-bottom-color: #333;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .notification {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            display: none;
+            animation: slideDown 0.3s ease-out;
+            z-index: 1000;
+            min-width: 300px;
+        }
+
+        .notification.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateX(-50%) translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .notification-body {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .notification-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .notification-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .notification-btn.primary {
+            background: #1976d2;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .phone-frame {
+                width: 100%;
+                max-width: 375px;
+                height: 90vh;
+                max-height: 812px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="mode-toggle" onclick="toggleDarkMode()">🌓 Comută Tema</button>
+
+    <div class="notification" id="notification">
+        <div class="notification-title">💧 Timp să bei apă!</div>
+        <div class="notification-body">Nu uita să bei un pahar cu apă (250ml)</div>
+        <div class="notification-actions">
+            <button class="notification-btn primary" onclick="drinkWater()">Am băut</button>
+            <button class="notification-btn" onclick="hideNotification()">Mai târziu</button>
+        </div>
+    </div>
+
+    <div class="phone-frame">
+        <div class="notch"></div>
+        <div class="screen" id="screen">
+            <div class="status-bar">
+                <span>9:41</span>
+                <span>📶 🔋</span>
+            </div>
+
+            <div class="app-content">
+                <div class="header">💧 Consumul Meu de Apă</div>
+
+                <div class="main-card">
+                    <div id="glasses" class="glass-count">0 pahare</div>
+                    <div id="ml" class="ml-count">0 ml</div>
+                    <button class="btn" onclick="drinkWater()">
+                        <span>➕</span>
+                        <span>Am băut un pahar</span>
+                    </button>
+                </div>
+
+                <div class="settings-card">
+                    <div class="settings-title">⚙️ Setări Notificări</div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-label">Interval orar: <span id="hourRange">8:00 - 22:00</span></div>
+                        <div style="display: flex; gap: 16px;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 12px; margin-bottom: 4px;">Start: <span id="startHour">8</span>:00</div>
+                                <input type="range" class="slider" min="0" max="23" value="8" id="startSlider" oninput="updateHours()">
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 12px; margin-bottom: 4px;">Sfârșit: <span id="endHour">22</span>:00</div>
+                                <input type="range" class="slider" min="0" max="23" value="22" id="endSlider" oninput="updateHours()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-label">Frecvență: la fiecare <span id="interval">60</span> minute</div>
+                        <input type="range" class="slider" min="15" max="240" step="15" value="60" id="intervalSlider" oninput="updateInterval()">
+                    </div>
+
+                    <button class="btn" onclick="activateNotifications()" style="margin-top: 16px;">
+                        <span>🔔</span>
+                        <span>Activează Notificările</span>
+                    </button>
+                </div>
+
+                <div class="tabs">
+                    <div class="tab active" onclick="showTab(0)">Astăzi</div>
+                    <div class="tab" onclick="showTab(1)">Săptămână</div>
+                    <div class="tab" onclick="showTab(2)">Lună</div>
+                </div>
+
+                <div class="stats-card" id="statsContent">
+                    <div style="font-weight: 600; margin-bottom: 8px;">📊 Statistici pentru astăzi</div>
+                    <div>Total: <span id="totalToday">0</span> pahare (<span id="mlToday">0</span> ml)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let glassCount = 0;
+        let darkMode = false;
+
+        function drinkWater() {
+            glassCount++;
+            updateDisplay();
+            hideNotification();
+            showToast('✅ Pahar adăugat!');
+        }
+
+        function updateDisplay() {
+            document.getElementById('glasses').textContent = glassCount + ' pahare';
+            document.getElementById('ml').textContent = (glassCount * 250) + ' ml';
+            document.getElementById('totalToday').textContent = glassCount;
+            document.getElementById('mlToday').textContent = (glassCount * 250);
+        }
+
+        function updateHours() {
+            const start = document.getElementById('startSlider').value;
+            const end = document.getElementById('endSlider').value;
+            document.getElementById('startHour').textContent = start;
+            document.getElementById('endHour').textContent = end;
+            document.getElementById('hourRange').textContent = `${start}:00 - ${end}:00`;
+        }
+
+        function updateInterval() {
+            const interval = document.getElementById('intervalSlider').value;
+            document.getElementById('interval').textContent = interval;
+        }
+
+        function toggleDarkMode() {
+            darkMode = !darkMode;
+            const screen = document.getElementById('screen');
+            if (darkMode) {
+                screen.classList.add('dark');
+            } else {
+                screen.classList.remove('dark');
+            }
+        }
+
+        function showTab(index) {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach((tab, i) => {
+                if (i === index) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+
+            const statsContent = document.getElementById('statsContent');
+            if (index === 0) {
+                statsContent.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 8px;">📊 Statistici pentru astăzi</div>
+                    <div>Total: ${glassCount} pahare (${glassCount * 250} ml)</div>
+                `;
+            } else if (index === 1) {
+                statsContent.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 8px;">📊 Statistici săptămână</div>
+                    <div>Total: ${glassCount * 7} pahare (${glassCount * 7 * 250} ml)</div>
+                    <div style="margin-top: 8px; font-size: 14px;">
+                        <div class="stat-item">Lun: ${glassCount} pahare</div>
+                        <div class="stat-item">Mar: ${glassCount} pahare</div>
+                        <div class="stat-item">Mie: ${glassCount} pahare</div>
+                        <div class="stat-item">Joi: ${glassCount} pahare</div>
+                        <div class="stat-item">Vin: ${glassCount} pahare</div>
+                        <div class="stat-item">Sâm: ${glassCount} pahare</div>
+                        <div class="stat-item">Dum: ${glassCount} pahare</div>
+                    </div>
+                `;
+            } else {
+                statsContent.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 8px;">📊 Statistici ultimele 30 zile</div>
+                    <div>Total: ${glassCount * 30} pahare (${glassCount * 30 * 250} ml)</div>
+                    <div>Medie zilnică: ${glassCount} pahare (${glassCount * 250} ml)</div>
+                `;
+            }
+        }
+
+        function activateNotifications() {
+            showToast('🔔 Notificările au fost activate!');
+            setTimeout(() => {
+                document.getElementById('notification').classList.add('show');
+            }, 3000);
+        }
+
+        function hideNotification() {
+            document.getElementById('notification').classList.remove('show');
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 30px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #333;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-weight: 600;
+                z-index: 1000;
+                animation: slideUp 0.3s ease-out;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
