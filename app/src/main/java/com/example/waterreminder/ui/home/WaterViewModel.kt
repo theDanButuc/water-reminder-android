@@ -113,6 +113,12 @@ class WaterViewModel(
         }
     }
 
+    val wakeTime: StateFlow<String> = userPreferences.wakeTime
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "07:00")
+
+    val sleepTime: StateFlow<String> = userPreferences.sleepTime
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "23:00")
+
     fun completeOnboarding(goalMl: Int, wakeTime: String, sleepTime: String) {
         viewModelScope.launch {
             userPreferences.setDailyGoalMl(goalMl)
@@ -120,6 +126,28 @@ class WaterViewModel(
             userPreferences.setSleepTime(sleepTime)
             userPreferences.computeAndSaveInterval()
             userPreferences.setOnboardingDone(true)
+        }
+    }
+
+    fun saveSettings(goalMl: Int, wakeTime: String, sleepTime: String) {
+        viewModelScope.launch {
+            userPreferences.setDailyGoalMl(goalMl)
+            userPreferences.setWakeTime(wakeTime)
+            userPreferences.setSleepTime(sleepTime)
+            userPreferences.computeAndSaveInterval()
+        }
+    }
+
+    fun resetTodayData() {
+        viewModelScope.launch {
+            repository.deleteTodayIntake(todayStart)
+            goalAlreadyReachedToday = false
+        }
+    }
+
+    fun resetOnboarding() {
+        viewModelScope.launch {
+            userPreferences.setOnboardingDone(false)
         }
     }
 

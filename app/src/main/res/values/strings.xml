@@ -31,6 +31,22 @@
     <string name="notification_permission_title">Notification Permission Needed</string>
     <string name="notification_permission_text">To remind you to drink water, please grant the notification permission. It\'s essential for the app to work correctly.</string>
     <string name="grant_permission">Grant Permission</string>
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_goal_section">HYDRATION GOAL</string>
+    <string name="settings_schedule_section">NOTIFICATION SCHEDULE</string>
+    <string name="settings_interval_note">Reminder interval is computed automatically from your goal and waking hours.</string>
+    <string name="settings_danger_section">DATA</string>
+    <string name="settings_reset_today">Reset today\'s data</string>
+    <string name="settings_restart_onboarding">Restart setup wizard</string>
+    <string name="settings_reset_today_title">Reset today\'s data?</string>
+    <string name="settings_reset_today_text">All water entries logged today will be permanently deleted.</string>
+    <string name="settings_reset_confirm">Reset</string>
+    <string name="settings_restart_onboarding_title">Restart setup?</string>
+    <string name="settings_restart_onboarding_text">You\'ll be taken back through the setup wizard to reconfigure your goal and schedule.</string>
+    <string name="save_button">Save</string>
+    <string name="confirm_button">Confirm</string>
+
     <!-- Onboarding -->
     <string name="onboarding_welcome_title">Stay Hydrated</string>
     <string name="onboarding_welcome_text">Track your daily water intake, set reminders, and reach your hydration goals every day.</string>

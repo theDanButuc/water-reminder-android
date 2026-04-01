@@ -16,13 +16,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -94,7 +100,7 @@ fun PermissionRequestScreen(title: String, text: String, buttonText: String, onC
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: WaterViewModel) {
     val tabs = listOf(
@@ -105,9 +111,12 @@ fun MainScreen(viewModel: WaterViewModel) {
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showSettings by remember { mutableStateOf(false) }
 
     val todayIntake by viewModel.todayIntake.collectAsState()
     val dailyGoal by viewModel.dailyGoal.collectAsState()
+    val wakeTime by viewModel.wakeTime.collectAsState()
+    val sleepTime by viewModel.sleepTime.collectAsState()
     val selectedDrinkType by viewModel.selectedDrinkType.collectAsState()
     val todayEntries by viewModel.todayEntries.collectAsState()
     val weekIntake by viewModel.weekIntake.collectAsState()
@@ -122,7 +131,41 @@ fun MainScreen(viewModel: WaterViewModel) {
         }
     }
 
+    if (showSettings) {
+        SettingsScreen(
+            currentGoalMl = dailyGoal,
+            currentWakeTime = wakeTime,
+            currentSleepTime = sleepTime,
+            onBack = { showSettings = false },
+            onSave = { goal, wake, sleep ->
+                viewModel.saveSettings(goal, wake, sleep)
+                showSettings = false
+            },
+            onResetToday = {
+                viewModel.resetTodayData()
+                showSettings = false
+            },
+            onRestartOnboarding = {
+                viewModel.resetOnboarding()
+            }
+        )
+        return
+    }
+
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.settings_title)
+                        )
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Column(

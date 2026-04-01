@@ -28,4 +28,7 @@ class WaterRepository(private val waterIntakeDao: WaterIntakeDao) {
 
     fun getMonthIntake(monthStart: Long): Flow<List<WaterIntake>> =
         waterIntakeDao.getIntakeFrom(monthStart)
+
+    suspend fun deleteTodayIntake(todayStart: Long) =
+        waterIntakeDao.deleteFrom(todayStart)
 }
