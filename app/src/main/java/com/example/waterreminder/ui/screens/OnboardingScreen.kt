@@ -50,6 +50,12 @@ fun OnboardingScreen(
     var wakeTime by rememberSaveable { mutableStateOf("07:00") }
     var sleepTime by rememberSaveable { mutableStateOf("23:00") }
 
+    // Must be declared before any conditional composable calls (Compose rules)
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { onFinished(goalMl, wakeTime, sleepTime) }
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -98,10 +104,6 @@ fun OnboardingScreen(
             }
 
             val isLastStep = step == 3
-            val notificationLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission(),
-                onResult = { onFinished(goalMl, wakeTime, sleepTime) }
-            )
 
             Button(
                 onClick = {
