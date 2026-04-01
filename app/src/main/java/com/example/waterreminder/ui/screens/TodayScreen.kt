@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -42,26 +41,26 @@ import androidx.compose.ui.unit.sp
 import com.example.waterreminder.R
 import com.example.waterreminder.data.db.entity.DrinkType
 import com.example.waterreminder.data.db.entity.WaterIntake
-import com.example.waterreminder.ui.components.AnimatedWaterBottle
-
-private val QUICK_AMOUNTS = listOf(100, 200, 250, 330, 500, 750)
+import com.example.waterreminder.ui.components.HydrationProgressRing
+import com.example.waterreminder.util.DrinkPreset
+import com.example.waterreminder.util.defaultPresetsFor
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
     totalMl: Int,
     dailyGoal: Int,
-    selectedAmount: Int,
     selectedDrinkType: DrinkType,
     todayEntries: List<WaterIntake>,
     onDrinkTypeSelected: (DrinkType) -> Unit,
-    onAddDrink: (Int) -> Unit,
+    onAddDrink: (amount: Int, presetLabel: String?) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     var showCustomDialog by rememberSaveable { mutableStateOf(false) }
-    var currentSelected by rememberSaveable { mutableIntStateOf(selectedAmount) }
+    var selectedPreset by rememberSaveable { mutableStateOf<DrinkPreset?>(null) }
 
     val remaining = (dailyGoal - totalMl).coerceAtLeast(0)
+    val presets = defaultPresetsFor(selectedDrinkType)
 
     Column(
         modifier = Modifier
@@ -71,26 +70,19 @@ fun TodayScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        AnimatedWaterBottle(consumed = totalMl, goal = dailyGoal)
+        // Circular progress ring
+        HydrationProgressRing(consumed = totalMl, goal = dailyGoal)
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = stringResource(R.string.progress_text, totalMl, dailyGoal),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (remaining > 0) {
-                    stringResource(R.string.remaining_text, remaining)
-                } else {
-                    stringResource(R.string.goal_completed)
-                },
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // Progress text
+        Text(
+            text = if (remaining > 0) {
+                stringResource(R.string.remaining_text, remaining)
+            } else {
+                stringResource(R.string.goal_completed)
+            },
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         // Drink Type Picker
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -101,16 +93,15 @@ fun TodayScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(DrinkType.entries) { type ->
                     FilterChip(
                         selected = selectedDrinkType == type,
-                        onClick = { onDrinkTypeSelected(type) },
-                        label = {
-                            Text("${type.emoji} ${type.displayName}")
+                        onClick = {
+                            onDrinkTypeSelected(type)
+                            selectedPreset = null
                         },
+                        label = { Text("${type.emoji} ${type.displayName}") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -120,7 +111,7 @@ fun TodayScreen(
             }
         }
 
-        // Quick Amount Buttons
+        // Amount Presets (per drink type)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = stringResource(R.string.select_amount),
@@ -135,14 +126,14 @@ fun TodayScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                QUICK_AMOUNTS.forEach { amount ->
+                presets.forEach { preset ->
                     ElevatedFilterChip(
-                        selected = currentSelected == amount,
+                        selected = selectedPreset == preset,
                         onClick = {
-                            currentSelected = amount
-                            onAddDrink(amount)
+                            selectedPreset = preset
+                            onAddDrink(preset.amountMl, preset.label)
                         },
-                        label = { Text("${amount}ml") },
+                        label = { Text(preset.label) },
                         modifier = Modifier.padding(horizontal = 4.dp),
                         colors = FilterChipDefaults.elevatedFilterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -150,9 +141,8 @@ fun TodayScreen(
                         )
                     )
                 }
-
                 ElevatedFilterChip(
-                    selected = !QUICK_AMOUNTS.contains(currentSelected),
+                    selected = selectedPreset == null && false,
                     onClick = { showCustomDialog = true },
                     label = { Text(stringResource(R.string.custom_amount)) },
                     modifier = Modifier.padding(horizontal = 4.dp),
@@ -187,7 +177,7 @@ fun TodayScreen(
                             Text(text = entry.type.emoji, fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "${entry.amount}ml ${entry.type.displayName}",
+                                text = "${entry.displayLabel} ${entry.type.displayName}",
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -217,8 +207,8 @@ fun TodayScreen(
         CustomAmountDialog(
             onDismiss = { showCustomDialog = false },
             onConfirm = { amount ->
-                currentSelected = amount
-                onAddDrink(amount)
+                selectedPreset = null
+                onAddDrink(amount, null)
                 showCustomDialog = false
             }
         )
@@ -226,10 +216,7 @@ fun TodayScreen(
 }
 
 @Composable
-private fun CustomAmountDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit
-) {
+private fun CustomAmountDialog(onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
     var textValue by rememberSaveable { mutableStateOf("") }
     val amount = textValue.toIntOrNull()
     val isValid = amount != null && amount in 1..5000
@@ -240,11 +227,7 @@ private fun CustomAmountDialog(
         text = {
             OutlinedTextField(
                 value = textValue,
-                onValueChange = { newValue ->
-                    if (newValue.all { it.isDigit() } && newValue.length <= 4) {
-                        textValue = newValue
-                    }
-                },
+                onValueChange = { if (it.all(Char::isDigit) && it.length <= 4) textValue = it },
                 label = { Text(stringResource(R.string.amount_ml_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
@@ -252,17 +235,12 @@ private fun CustomAmountDialog(
             )
         },
         confirmButton = {
-            TextButton(
-                onClick = { if (isValid) onConfirm(amount!!) },
-                enabled = isValid
-            ) {
+            TextButton(onClick = { if (isValid) onConfirm(amount!!) }, enabled = isValid) {
                 Text(stringResource(R.string.add_button))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel_button))
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_button)) }
         }
     )
 }

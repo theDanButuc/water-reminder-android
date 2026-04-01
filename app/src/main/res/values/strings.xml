@@ -31,6 +31,24 @@
     <string name="notification_permission_title">Notification Permission Needed</string>
     <string name="notification_permission_text">To remind you to drink water, please grant the notification permission. It\'s essential for the app to work correctly.</string>
     <string name="grant_permission">Grant Permission</string>
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Stay Hydrated</string>
+    <string name="onboarding_welcome_text">Track your daily water intake, set reminders, and reach your hydration goals every day.</string>
+    <string name="onboarding_goal_title">Set Your Daily Goal</string>
+    <string name="onboarding_goal_text">How much water do you want to drink per day? The general recommendation is 2000–2500 ml.</string>
+    <string name="daily_goal_label">Daily goal</string>
+    <string name="goal_range_hint">Enter a value between 500 and 5000 ml</string>
+    <string name="onboarding_times_title">Your Schedule</string>
+    <string name="onboarding_times_text">When do you wake up and go to sleep? We\'ll space your reminders evenly throughout your day.</string>
+    <string name="wake_time_label">Wake-up time (HH:MM)</string>
+    <string name="sleep_time_label">Bedtime (HH:MM)</string>
+    <string name="onboarding_times_hint">Reminders will only appear between these times.</string>
+    <string name="onboarding_notif_title">Enable Reminders</string>
+    <string name="onboarding_notif_text">Allow notifications so we can remind you to drink water at the right times during your day.</string>
+    <string name="next_button">Next</string>
+    <string name="back_button">Back</string>
+    <string name="get_started_button">Get Started</string>
+
     <!-- Notifications -->
     <string name="notification_channel_name">Water Reminder</string>
     <string name="notification_channel_description">Channel for water reminder notifications</string>

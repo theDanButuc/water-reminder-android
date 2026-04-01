@@ -4,7 +4,20 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-  <path
-      android:fillColor="#FFFFFF"
-      android:pathData="M54,34.5c-6.6,0 -12,5.4 -12,12c0,6.6 12,21 12,21s12,-14.4 12,-21c0,-6.6 -5.4,-12 -12,-12z"/>
+
+    <!-- Glass body (trapezoid - wider at top) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,32 L30,80 Q30,84 34,84 L74,84 Q78,84 78,80 L72,32 Z" />
+
+    <!-- Glass rim -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,32 L74,32 Q76,32 76,30 L76,28 Q76,26 74,26 L34,26 Q32,26 32,28 L32,30 Q32,32 34,32 Z" />
+
+    <!-- Water drop (pointing down) -->
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M54,40 Q62,53 62,59 A8,8 0 0,1 46,59 Q46,53 54,40 Z" />
+
 </vector>

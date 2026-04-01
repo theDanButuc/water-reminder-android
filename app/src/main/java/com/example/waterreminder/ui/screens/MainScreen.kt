@@ -108,7 +108,6 @@ fun MainScreen(viewModel: WaterViewModel) {
 
     val todayIntake by viewModel.todayIntake.collectAsState()
     val dailyGoal by viewModel.dailyGoal.collectAsState()
-    val defaultCupMl by viewModel.defaultCupMl.collectAsState()
     val selectedDrinkType by viewModel.selectedDrinkType.collectAsState()
     val todayEntries by viewModel.todayEntries.collectAsState()
     val weekIntake by viewModel.weekIntake.collectAsState()
@@ -155,11 +154,10 @@ fun MainScreen(viewModel: WaterViewModel) {
                     0 -> TodayScreen(
                         totalMl = todayIntake,
                         dailyGoal = dailyGoal,
-                        selectedAmount = defaultCupMl,
                         selectedDrinkType = selectedDrinkType,
                         todayEntries = todayEntries,
                         onDrinkTypeSelected = { viewModel.setDrinkType(it) },
-                        onAddDrink = { amount -> viewModel.addWaterIntake(amount) },
+                        onAddDrink = { amount, label -> viewModel.addWaterIntake(amount, label) },
                         snackbarHostState = snackbarHostState
                     )
                     1 -> StatisticsScreen(
