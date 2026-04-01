@@ -119,6 +119,7 @@ fun MainScreen(viewModel: WaterViewModel) {
     val sleepTime by viewModel.sleepTime.collectAsState()
     val selectedDrinkType by viewModel.selectedDrinkType.collectAsState()
     val todayEntries by viewModel.todayEntries.collectAsState()
+    val streaks by viewModel.streaks.collectAsState()
     val weekIntake by viewModel.weekIntake.collectAsState()
     val monthIntake by viewModel.monthIntake.collectAsState()
     val currentMonth by viewModel.currentMonth.collectAsState()
@@ -199,17 +200,20 @@ fun MainScreen(viewModel: WaterViewModel) {
                         dailyGoal = dailyGoal,
                         selectedDrinkType = selectedDrinkType,
                         todayEntries = todayEntries,
+                        streaks = streaks,
                         onDrinkTypeSelected = { viewModel.setDrinkType(it) },
                         onAddDrink = { amount, label -> viewModel.addWaterIntake(amount, label) },
                         snackbarHostState = snackbarHostState
                     )
                     1 -> StatisticsScreen(
                         title = stringResource(R.string.week_progress_title),
-                        data = weekIntake
+                        data = weekIntake,
+                        goalMl = dailyGoal
                     )
                     2 -> StatisticsScreen(
                         title = stringResource(R.string.month_title, currentMonth),
-                        data = monthIntake
+                        data = monthIntake,
+                        goalMl = dailyGoal
                     )
                 }
             }

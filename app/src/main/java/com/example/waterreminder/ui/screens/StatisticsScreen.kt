@@ -17,7 +17,7 @@ import com.example.waterreminder.ui.components.BarChart
 import com.example.waterreminder.ui.components.ChartData
 
 @Composable
-fun StatisticsScreen(title: String, data: List<ChartData>) {
+fun StatisticsScreen(title: String, data: List<ChartData>, goalMl: Int = 0) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -31,7 +31,7 @@ fun StatisticsScreen(title: String, data: List<ChartData>) {
             modifier = Modifier.padding(bottom = 24.dp)
         )
         if (data.isNotEmpty()) {
-            BarChart(data = data)
+            BarChart(data = data, goalMl = goalMl)
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.no_data_available))

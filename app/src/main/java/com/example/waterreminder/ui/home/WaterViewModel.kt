@@ -77,6 +77,13 @@ class WaterViewModel(
 
     private var goalAlreadyReachedToday = false
 
+    data class StreakData(val current: Int, val best: Int)
+
+    val streaks: StateFlow<StreakData> = combine(
+        repository.getAllIntake(), dailyGoal
+    ) { intake, goal -> computeStreaks(intake, goal) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StreakData(0, 0))
+
     val weekIntake: StateFlow<List<ChartData>> = repository.getWeekIntake(weekStart)
         .map { transformToWeeklyChartData(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -155,6 +162,57 @@ class WaterViewModel(
         viewModelScope.launch {
             repository.addWaterIntake(amount, _selectedDrinkType.value, presetLabel)
         }
+    }
+
+    private fun computeStreaks(intake: List<WaterIntake>, goal: Int): StreakData {
+        if (goal <= 0) return StreakData(0, 0)
+        val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val dailyTotals = intake
+            .groupBy { dayFormat.format(Date(it.timestamp)) }
+            .mapValues { (_, entries) -> entries.sumOf { it.effectiveAmount } }
+
+        if (dailyTotals.isEmpty()) return StreakData(0, 0)
+
+        val today = dayFormat.format(Date())
+        val cal = Calendar.getInstance()
+
+        // Current streak: count backwards from today
+        var current = 0
+        val checkCal = Calendar.getInstance()
+        while (true) {
+            val dayStr = dayFormat.format(checkCal.time)
+            if ((dailyTotals[dayStr] ?: 0) >= goal) {
+                current++
+                checkCal.add(Calendar.DAY_OF_YEAR, -1)
+            } else {
+                break
+            }
+        }
+
+        // Best streak: scan all sorted days
+        val sortedDays = dailyTotals.keys.sorted()
+        var best = 0
+        var temp = 0
+        val iterCal = Calendar.getInstance()
+        for (i in sortedDays.indices) {
+            val total = dailyTotals[sortedDays[i]] ?: 0
+            if (total >= goal) {
+                if (i == 0) {
+                    temp = 1
+                } else {
+                    // Check if consecutive with previous day
+                    iterCal.time = dayFormat.parse(sortedDays[i - 1])!!
+                    iterCal.add(Calendar.DAY_OF_YEAR, 1)
+                    val expectedNext = dayFormat.format(iterCal.time)
+                    temp = if (expectedNext == sortedDays[i]) temp + 1 else 1
+                }
+                if (temp > best) best = temp
+            } else {
+                temp = 0
+            }
+        }
+
+        return StreakData(current, best)
     }
 
     private fun transformToWeeklyChartData(intakeList: List<WaterIntake>): List<ChartData> {
