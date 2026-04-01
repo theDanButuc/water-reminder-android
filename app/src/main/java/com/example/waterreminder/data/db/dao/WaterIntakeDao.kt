@@ -16,4 +16,7 @@ interface WaterIntakeDao {
 
     @Query("DELETE FROM water_intake WHERE timestamp >= :startTime")
     suspend fun deleteFrom(startTime: Long)
+
+    @Query("SELECT * FROM water_intake ORDER BY timestamp ASC")
+    fun getAllIntake(): Flow<List<WaterIntake>>
 }

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +44,7 @@ import com.example.waterreminder.R
 import com.example.waterreminder.data.db.entity.DrinkType
 import com.example.waterreminder.data.db.entity.WaterIntake
 import com.example.waterreminder.ui.components.HydrationProgressRing
+import com.example.waterreminder.ui.home.WaterViewModel
 import com.example.waterreminder.util.DrinkPreset
 import com.example.waterreminder.util.defaultPresetsFor
 
@@ -52,6 +55,7 @@ fun TodayScreen(
     dailyGoal: Int,
     selectedDrinkType: DrinkType,
     todayEntries: List<WaterIntake>,
+    streaks: WaterViewModel.StreakData,
     onDrinkTypeSelected: (DrinkType) -> Unit,
     onAddDrink: (amount: Int, presetLabel: String?) -> Unit,
     snackbarHostState: SnackbarHostState
@@ -72,6 +76,52 @@ fun TodayScreen(
     ) {
         // Circular progress ring
         HydrationProgressRing(consumed = totalMl, goal = dailyGoal)
+
+        // Streak card
+        if (streaks.current > 0 || streaks.best > 0) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "🔥", fontSize = 24.sp)
+                        Text(
+                            text = stringResource(R.string.streak_current, streaks.current),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = stringResource(R.string.streak_current_label),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "🏆", fontSize = 24.sp)
+                        Text(
+                            text = stringResource(R.string.streak_best, streaks.best),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = stringResource(R.string.streak_best_label),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+        }
 
         // Progress text
         Text(

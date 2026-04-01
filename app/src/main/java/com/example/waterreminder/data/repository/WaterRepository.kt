@@ -31,4 +31,7 @@ class WaterRepository(private val waterIntakeDao: WaterIntakeDao) {
 
     suspend fun deleteTodayIntake(todayStart: Long) =
         waterIntakeDao.deleteFrom(todayStart)
+
+    fun getAllIntake(): Flow<List<WaterIntake>> =
+        waterIntakeDao.getAllIntake()
 }
