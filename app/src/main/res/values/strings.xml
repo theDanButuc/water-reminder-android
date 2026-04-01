@@ -1,3 +1,39 @@
 <resources>
     <string name="app_name">Water Reminder</string>
+
+    <!-- Tabs -->
+    <string name="tab_today">Today</string>
+    <string name="tab_week">Week</string>
+    <string name="tab_month">Month</string>
+
+    <!-- Today Screen -->
+    <string name="select_amount">Select amount</string>
+    <string name="custom_amount">Custom</string>
+    <string name="custom_amount_title">Custom Amount</string>
+    <string name="amount_ml_label">Amount (ml)</string>
+    <string name="add_button">Add</string>
+    <string name="cancel_button">Cancel</string>
+    <string name="progress_text">%1$d ml / %2$d ml</string>
+    <string name="remaining_text">%1$d ml remaining</string>
+    <string name="goal_completed">Daily goal completed!</string>
+    <string name="goal_reached_congrats">Congratulations! You reached your daily water goal!</string>
+    <string name="drink_type_label">Drink type</string>
+    <string name="todays_log">Today\'s log</string>
+    <string name="effective_amount">~%1$d ml effective</string>
+    <string name="more_entries">+%1$d more entries</string>
+
+    <!-- Statistics Screen -->
+    <string name="week_progress_title">This Week\'s Progress</string>
+    <string name="month_title">Month of %1$s</string>
+    <string name="no_data_available">No data available for this period yet.</string>
+
+    <!-- Permission Screens -->
+    <string name="notification_permission_title">Notification Permission Needed</string>
+    <string name="notification_permission_text">To remind you to drink water, please grant the notification permission. It\'s essential for the app to work correctly.</string>
+    <string name="grant_permission">Grant Permission</string>
+    <!-- Notifications -->
+    <string name="notification_channel_name">Water Reminder</string>
+    <string name="notification_channel_description">Channel for water reminder notifications</string>
+    <string name="notification_title">Time for Water!</string>
+    <string name="notification_text">Don\'t forget to stay hydrated. Drink a glass of water.</string>
 </resources>
