@@ -39,7 +39,7 @@ fun HydrationProgressRing(consumed: Int, goal: Int) {
     Box(contentAlignment = Alignment.Center) {
         // Track (background ring)
         CircularProgressIndicator(
-            progress = { 1f },
+            progress = 1f,
             modifier = Modifier.size(220.dp),
             strokeWidth = 16.dp,
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -47,7 +47,7 @@ fun HydrationProgressRing(consumed: Int, goal: Int) {
         )
         // Progress ring
         CircularProgressIndicator(
-            progress = { animatedFraction },
+            progress = animatedFraction,
             modifier = Modifier.size(220.dp),
             strokeWidth = 16.dp,
             color = ringColor,

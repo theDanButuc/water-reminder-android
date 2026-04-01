@@ -63,7 +63,7 @@ fun OnboardingScreen(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         LinearProgressIndicator(
-            progress = { (step + 1) / 4f },
+            progress = (step + 1) / 4f,
             modifier = Modifier.fillMaxWidth()
         )
 
