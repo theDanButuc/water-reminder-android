@@ -28,26 +28,28 @@ class ReminderWorker(
     override suspend fun doWork(): Result {
         val prefs = UserPreferences(context)
 
-        if (isQuietHours(prefs)) return Result.success()
+        if (isOutsideActiveHours(prefs)) return Result.success()
 
         showNotification()
         return Result.success()
     }
 
-    private suspend fun isQuietHours(prefs: UserPreferences): Boolean {
+    private suspend fun isOutsideActiveHours(prefs: UserPreferences): Boolean {
         val formatter = DateTimeFormatter.ofPattern("HH:mm")
         val now = LocalTime.now()
 
-        val startStr = prefs.quietHoursStart.first()
-        val endStr = prefs.quietHoursEnd.first()
+        val wakeStr = prefs.wakeTime.first()
+        val sleepStr = prefs.sleepTime.first()
 
-        val start = LocalTime.parse(startStr, formatter)
-        val end = LocalTime.parse(endStr, formatter)
+        val wake = runCatching { LocalTime.parse(wakeStr, formatter) }.getOrDefault(LocalTime.of(7, 0))
+        val sleep = runCatching { LocalTime.parse(sleepStr, formatter) }.getOrDefault(LocalTime.of(23, 0))
 
-        return if (start <= end) {
-            now in start..end
+        // Active hours are wake..sleep. Return true (suppress) if outside that window.
+        return if (wake <= sleep) {
+            now < wake || now > sleep
         } else {
-            now >= start || now <= end
+            // overnight wrap: active if now >= wake OR now <= sleep
+            now < sleep && now > wake
         }
     }
 

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -55,11 +56,11 @@ class WaterViewModel(
         SimpleDateFormat("MMMM", Locale.getDefault()).format(Date(monthStart))
     ).stateIn(viewModelScope, SharingStarted.Lazily, "")
 
+    val onboardingDone: StateFlow<Boolean> = userPreferences.onboardingDone
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val dailyGoal: StateFlow<Int> = userPreferences.dailyGoalMl
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2000)
-
-    val defaultCupMl: StateFlow<Int> = userPreferences.defaultCupMl
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 250)
 
     private val _selectedDrinkType = MutableStateFlow(DrinkType.WATER)
     val selectedDrinkType: StateFlow<DrinkType> = _selectedDrinkType
@@ -85,6 +86,15 @@ class WaterViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        // Restore last selected drink type from prefs
+        viewModelScope.launch {
+            val lastType = runCatching {
+                DrinkType.valueOf(userPreferences.lastSelectedDrinkType.first())
+            }.getOrDefault(DrinkType.WATER)
+            _selectedDrinkType.value = lastType
+        }
+
+        // Watch for goal reached
         viewModelScope.launch {
             combine(todayIntake, dailyGoal) { intake, goal -> intake to goal }
                 .collect { (intake, goal) ->
@@ -98,12 +108,24 @@ class WaterViewModel(
 
     fun setDrinkType(type: DrinkType) {
         _selectedDrinkType.value = type
+        viewModelScope.launch {
+            userPreferences.setLastSelectedDrinkType(type.name)
+        }
     }
 
-    fun addWaterIntake(amount: Int) {
+    fun completeOnboarding(goalMl: Int, wakeTime: String, sleepTime: String) {
         viewModelScope.launch {
-            repository.addWaterIntake(amount, _selectedDrinkType.value)
-            userPreferences.setDefaultCupMl(amount)
+            userPreferences.setDailyGoalMl(goalMl)
+            userPreferences.setWakeTime(wakeTime)
+            userPreferences.setSleepTime(sleepTime)
+            userPreferences.computeAndSaveInterval()
+            userPreferences.setOnboardingDone(true)
+        }
+    }
+
+    fun addWaterIntake(amount: Int, presetLabel: String? = null) {
+        viewModelScope.launch {
+            repository.addWaterIntake(amount, _selectedDrinkType.value, presetLabel)
         }
     }
 
@@ -119,7 +141,6 @@ class WaterViewModel(
         }
 
         val weeklyData = dayNames.associateWith { 0 }.toMutableMap()
-
         intakeList.forEach { intake ->
             val day = dayFormat.format(Date(intake.timestamp))
             if (weeklyData.containsKey(day)) {
@@ -134,10 +155,7 @@ class WaterViewModel(
         calendar.time = Date(monthStart)
         val maxDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-        val monthlyData = (1..maxDays).associate {
-            it.toString() to 0
-        }.toMutableMap()
-
+        val monthlyData = (1..maxDays).associate { it.toString() to 0 }.toMutableMap()
         val dayFormat = SimpleDateFormat("d", Locale.getDefault())
 
         intakeList.forEach { intake ->

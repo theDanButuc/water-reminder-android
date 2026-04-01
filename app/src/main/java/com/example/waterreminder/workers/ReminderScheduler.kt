@@ -8,14 +8,14 @@ import java.util.concurrent.TimeUnit
 
 object ReminderScheduler {
 
-    fun schedule(context: Context, intervalHours: Int = 2) {
-        if (intervalHours <= 0) {
+    fun schedule(context: Context, intervalMinutes: Int = 120) {
+        if (intervalMinutes <= 0) {
             cancel(context)
             return
         }
 
         val request = PeriodicWorkRequestBuilder<ReminderWorker>(
-            intervalHours.toLong(), TimeUnit.HOURS
+            intervalMinutes.toLong(), TimeUnit.MINUTES
         ).build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(

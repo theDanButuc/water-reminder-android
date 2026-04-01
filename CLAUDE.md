@@ -27,64 +27,51 @@ Follow **MVVM + Repository Pattern** with **Jetpack Compose** UI.
 
 ```
 app/src/main/java/com/example/waterreminder/
-├── MainActivity.kt                # Single Activity, hosts all Compose screens
-├── WaterReminderApplication.kt    # Application class (currently inside MainActivity.kt)
-├── NotificationScheduler.kt       # AlarmManager notifications (to be migrated to WorkManager)
-├── BootReceiver.kt                # Re-schedules alarms on boot
+├── MainActivity.kt
+├── WaterReminderApplication.kt
 ├── data/
-│   ├── WaterRepository.kt         # Repository + Room DB + DAO + Entity (all-in-one currently)
-│   └── (future) db/
-│   │   ├── AppDatabase.kt         # Room database singleton
-│   │   ├── dao/
-│   │   │   ├── DrinkEntryDao.kt
-│   │   │   └── DailyGoalDao.kt
+│   ├── db/
+│   │   ├── AppDatabase.kt
+│   │   ├── dao/WaterIntakeDao.kt
 │   │   └── entity/
-│   │       ├── DrinkEntry.kt
-│   │       └── DailyGoal.kt
-│   ├── (future) repository/
-│   │   └── WaterRepository.kt     # Single source of truth
-│   └── (future) preferences/
-│       └── UserPreferences.kt     # Jetpack DataStore
+│   │       ├── WaterIntake.kt
+│   │       └── DrinkType.kt
+│   ├── preferences/UserPreferences.kt
+│   └── repository/WaterRepository.kt
 ├── ui/
-│   ├── theme/
-│   │   ├── Theme.kt               # Material 3 + Dynamic Colors
-│   │   └── Type.kt                # Typography
-│   ├── (future) screens/
-│   │   ├── HomeScreen.kt
-│   │   ├── StatsScreen.kt
-│   │   └── SettingsScreen.kt
-├── (future) workers/
-│   └── ReminderWorker.kt          # WorkManager replacement
-└── (future) util/
-    ├── Extensions.kt
-    └── Constants.kt
+│   ├── components/
+│   │   ├── CircularProgressIndicator.kt  ← new (replaces water bottle)
+│   │   └── BarChart.kt
+│   ├── home/WaterViewModel.kt
+│   ├── screens/
+│   │   ├── MainScreen.kt
+│   │   ├── TodayScreen.kt
+│   │   ├── StatisticsScreen.kt
+│   │   ├── SettingsScreen.kt             ← to be added
+│   │   └── OnboardingScreen.kt           ← to be added
+│   └── theme/
+│       ├── Theme.kt
+│       └── Type.kt
+└── workers/
+    ├── ReminderWorker.kt
+    └── ReminderScheduler.kt
 ```
-
-### Current state
-
-Everything lives in two files:
-- `MainActivity.kt` (539 lines) — contains Application class, all Compose screens, ViewModel, ViewModelFactory, chart composables
-- `data/WaterRepository.kt` (71 lines) — contains Entity, DAO, Database, and Repository
-
-**Refactoring priority:** Split `MainActivity.kt` into separate files as features are added.
 
 ---
 
 ## Dependencies (Current)
 
 ```kotlin
-// build.gradle.kts (app)
-
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
-}
-
 // Room (2.6.1)
 implementation("androidx.room:room-runtime:2.6.1")
 implementation("androidx.room:room-ktx:2.6.1")
 ksp("androidx.room:room-compiler:2.6.1")
+
+// DataStore
+implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+// WorkManager
+implementation("androidx.work:work-runtime-ktx:2.9.0")
 
 // Compose (BOM 2023.08.00)
 implementation(platform("androidx.compose:compose-bom:2023.08.00"))
@@ -97,25 +84,17 @@ implementation("androidx.compose.material:material-icons-extended")
 // Core
 implementation("androidx.core:core-ktx:1.12.0")
 implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 implementation("androidx.activity:activity-compose:1.8.2")
 ```
 
 ### Dependencies to add (as needed per task)
 
 ```kotlin
-// DataStore — add when implementing UserPreferences
-implementation("androidx.datastore:datastore-preferences:1.1.1")
-
-// WorkManager — add when migrating notifications
-implementation("androidx.work:work-runtime-ktx:2.9.0")
-
-// Compose Navigation — add when implementing Settings screen
+// Compose Navigation — add when implementing Settings + Onboarding
 implementation("androidx.navigation:navigation-compose:2.8.0")
 
-// ViewModel Compose — add for better ViewModel integration
-implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
-
-// Charts (for statistics improvements) — choose one:
+// Charts (for statistics improvements)
 implementation("com.patrykandpatrick.vico:compose-m3:1.15.0")
 
 // Health Connect — add in Phase 3
@@ -126,92 +105,218 @@ implementation("androidx.glance:glance-appwidget:1.1.0")
 implementation("androidx.glance:glance-material3:1.1.0")
 ```
 
-Do not introduce alternatives to these without asking.
-
 ---
 
 ## Data Models
 
-### Current entity
+### Current entity (v2, already migrated)
 
 ```kotlin
-// WaterIntake — currently in WaterRepository.kt
 @Entity(tableName = "water_intake")
 data class WaterIntake(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val amount: Int,           // in ml
-    val timestamp: Long = System.currentTimeMillis()
+    val amount: Int,
+    val timestamp: Long = System.currentTimeMillis(),
+    val drinkType: String = DrinkType.WATER.name
 )
 ```
 
-### Target entities (requires Room migration from v1 to v2)
+### DrinkType enum
 
 ```kotlin
-// DrinkEntry.kt — replaces WaterIntake
-@Entity(tableName = "drink_entries")
-data class DrinkEntry(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val amountMl: Int,
-    val drinkType: DrinkType = DrinkType.WATER,
-    val timestamp: Long = System.currentTimeMillis(),
-    val notes: String? = null
-)
-
-enum class DrinkType(val hydrationFactor: Float, val emoji: String) {
-    WATER(1.0f, "\uD83D\uDCA7"),
-    COFFEE(0.8f, "\u2615"),
-    TEA(0.9f, "\uD83C\uDF75"),
-    JUICE(0.85f, "\uD83E\uDDC3"),
-    MILK(0.9f, "\uD83E\uDD5B"),
-    ENERGY_DRINK(0.7f, "\u26A1"),
-    OTHER(0.8f, "\uD83E\uDD64")
+enum class DrinkType(val hydrationFactor: Float, val emoji: String, val displayName: String) {
+    WATER(1.0f, "💧", "Water"),
+    COFFEE(0.8f, "☕", "Coffee"),
+    TEA(0.9f, "🍵", "Tea"),
+    JUICE(0.85f, "🧃", "Juice"),
+    MILK(0.9f, "🥛", "Milk"),
+    ENERGY_DRINK(0.7f, "⚡", "Energy"),
+    OTHER(0.8f, "🥤", "Other")
 }
-
-// DailyGoal.kt
-@Entity(tableName = "daily_goals")
-data class DailyGoal(
-    @PrimaryKey val date: String,  // format: "2026-04-01"
-    val goalMl: Int = 2000,
-    val achievedMl: Int = 0
-)
 ```
-
-**Important:** When migrating, write a proper Room `Migration(1, 2)` — do not use `fallbackToDestructiveMigration()` as users will lose data.
 
 ---
 
-## Compose UI Patterns
+## UI Rules
 
-### State collection in Compose
+- Use **Material Design 3** components exclusively
+- Enable **Dynamic Color** on Android 12+ (already in `Theme.kt`)
+- **Never hardcode colors** — use `MaterialTheme.colorScheme.*`
+- All strings in `res/values/strings.xml`
+- Dark mode works via Material 3 theme attributes
+
+---
+
+## Progress Indicator (Home Screen)
+
+**Do NOT use the animated water bottle shape** — it is unclear to users and looks random.
+
+Use a **large circular progress ring** instead:
+- Outer ring: `CircularProgressIndicator` styled as a thick arc (strokeWidth ~16dp)
+- Center text: consumed ml (large, bold) + goal ml (smaller, secondary color)
+- Below ring: percentage and remaining ml text
+- Color of ring: follows goal completion (use `MaterialTheme.colorScheme.primary` for normal, green tint at 100%)
 
 ```kotlin
-// Correct — use collectAsState() in @Composable functions
-val todayIntake by viewModel.todayIntake.collectAsState()
-
-// Never use repeatOnLifecycle in Compose — that's a Fragment/View pattern
-```
-
-### ViewModel scope
-
-```kotlin
-// Correct — use viewModelScope for coroutines in ViewModel
-fun addWaterIntake(amount: Int) {
-    viewModelScope.launch {
-        repository.addWaterIntake(amount)
+// Example structure
+Box(contentAlignment = Alignment.Center) {
+    CircularProgressIndicator(
+        progress = { fraction },
+        modifier = Modifier.size(220.dp),
+        strokeWidth = 16.dp,
+        trackColor = MaterialTheme.colorScheme.surfaceVariant
+    )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("${consumed}ml", style = MaterialTheme.typography.headlineLarge)
+        Text("/ ${goal}ml", style = MaterialTheme.typography.bodyMedium)
+        Text("${percent}%", style = MaterialTheme.typography.titleMedium)
     }
 }
-
-// Current code uses MainScope() — migrate to viewModelScope
 ```
 
-### Navigation (when adding Settings)
+---
+
+## App Icon
+
+Replace the current green upside-down drop icon.
+
+**New icon spec:**
+- Background: blue circle (`#1976D2` or similar)
+- Foreground: white glass/cup shape (simple outline) with a white water drop inside or above it
+- Style: flat, Material You compatible, clean
+- Files needed: `ic_launcher.xml` (vector adaptive icon) + `ic_launcher_background.xml` + `ic_launcher_foreground.xml`
+- The drop must point **downward** (standard orientation)
+
+---
+
+## Drink-Type-Specific Amount Presets
+
+**Do NOT use the same amount list for all drink types.**
+
+Each DrinkType has its own preset amounts that make sense for that category.
+When the user selects a drink type, the amount chips update to that type's presets.
+Always include a "Custom" option at the end.
 
 ```kotlin
-// Use Compose Navigation, not Fragment Navigation Component
-val navController = rememberNavController()
-NavHost(navController, startDestination = "home") {
-    composable("home") { HomeScreen(viewModel, navController) }
-    composable("settings") { SettingsScreen(settingsViewModel, navController) }
+// Define in a constants file or companion object
+val DRINK_TYPE_PRESETS: Map<DrinkType, List<DrinkPreset>> = mapOf(
+
+    DrinkType.WATER to listOf(
+        DrinkPreset("100ml", 100), DrinkPreset("200ml", 200),
+        DrinkPreset("250ml", 250), DrinkPreset("330ml", 330),
+        DrinkPreset("500ml", 500), DrinkPreset("750ml", 750)
+    ),
+
+    DrinkType.COFFEE to listOf(
+        DrinkPreset("Ristretto", 15),  DrinkPreset("Espresso", 30),
+        DrinkPreset("Lungo", 60),      DrinkPreset("Americano", 240),
+        DrinkPreset("Cappuccino", 150), DrinkPreset("Latte", 300)
+    ),
+
+    DrinkType.TEA to listOf(
+        DrinkPreset("Cup", 200), DrinkPreset("Mug", 300),
+        DrinkPreset("Carafe", 500), DrinkPreset("Large", 750)
+    ),
+
+    DrinkType.JUICE to listOf(
+        DrinkPreset("Small", 150), DrinkPreset("Glass", 250),
+        DrinkPreset("Bottle", 330), DrinkPreset("Large", 500)
+    ),
+
+    DrinkType.MILK to listOf(
+        DrinkPreset("Small", 150), DrinkPreset("Glass", 250),
+        DrinkPreset("Large", 350)
+    ),
+
+    DrinkType.ENERGY_DRINK to listOf(
+        DrinkPreset("Can", 250), DrinkPreset("Large can", 355),
+        DrinkPreset("Bottle", 500)
+    ),
+
+    DrinkType.OTHER to listOf(
+        DrinkPreset("Small", 100), DrinkPreset("Medium", 250),
+        DrinkPreset("Large", 500)
+    )
+)
+
+data class DrinkPreset(val label: String, val amountMl: Int)
+```
+
+The selected preset label (e.g. "Espresso") is shown in Today's log alongside the emoji.
+
+---
+
+## Onboarding Flow
+
+Show on first launch only (`ONBOARDING_DONE == false` in UserPreferences).
+
+**Screen 1 — Welcome**
+- App name + tagline
+- "Let's set up your daily hydration plan"
+- Next button
+
+**Screen 2 — Daily Goal**
+- Slider or number input: default 2000ml
+- Optional: weight-based calculator (weight in kg × 33ml = suggested goal)
+- Text: "We'll remind you throughout the day to reach this goal"
+
+**Screen 3 — Wake & Sleep Time**
+- Two time pickers: Wake time (default 07:00) + Sleep time (default 23:00)
+- Text: "Reminders will only be sent during your waking hours"
+- Notification interval derived automatically: `wakeHours / (goalMl / 250)`
+  - Example: 16h awake, goal 2000ml → 8 glasses → reminder every 2h
+
+**Screen 4 — Notification Permission**
+- Explain why notifications are needed
+- Request `POST_NOTIFICATIONS` permission here (not on app launch)
+- "Allow" button → request permission → finish onboarding
+
+On finish: save goal, wake time, sleep time to UserPreferences. Set `ONBOARDING_DONE = true`. Schedule WorkManager with computed interval.
+
+---
+
+## Notification Logic
+
+Notifications must be **evenly distributed** between wake time and sleep time based on the daily goal.
+
+```
+interval = (sleepTime - wakeTime) / numberOfGlasses
+numberOfGlasses = ceil(goalMl / 250)
+```
+
+- Minimum interval: 30 minutes
+- Maximum interval: 4 hours
+- Never notify outside wake/sleep window (quiet hours = before wakeTime or after sleepTime)
+- Stop notifying once daily goal is reached
+
+ReminderWorker checks on every trigger:
+1. Is current time within wake/sleep window? → if not, skip
+2. Is daily goal already reached? → if yes, skip
+3. Show notification with contextual message based on time of day + progress
+
+```kotlin
+val message = when {
+    progressPct < 25 -> "Time to start hydrating! 💧"
+    progressPct < 50 -> "Keep it up! You're at $progressPct% of your goal."
+    progressPct < 75 -> "Halfway there! $remainingMl ml to go."
+    progressPct < 100 -> "Almost done! Just $remainingMl ml remaining."
+    else -> return Result.success() // goal reached, skip
+}
+```
+
+---
+
+## UserPreferences Keys
+
+```kotlin
+object PreferenceKeys {
+    val DAILY_GOAL_ML = intPreferencesKey("daily_goal_ml")           // default: 2000
+    val WAKE_TIME = stringPreferencesKey("wake_time")                 // default: "07:00"
+    val SLEEP_TIME = stringPreferencesKey("sleep_time")               // default: "23:00"
+    val NOTIFICATION_INTERVAL_MIN = intPreferencesKey("notif_interval_min") // computed on onboarding
+    val UNIT_ML = booleanPreferencesKey("unit_ml")                    // true=ml, false=oz
+    val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")    // default: false
+    val LAST_SELECTED_DRINK_TYPE = stringPreferencesKey("last_drink_type") // default: "WATER"
 }
 ```
 
@@ -219,243 +324,119 @@ NavHost(navController, startDestination = "home") {
 
 ## Async Rules
 
-- **All DB operations** must use `Flow` or `suspend` functions — never blocking calls on main thread
-- **All ViewModel operations** must use `viewModelScope` (not `MainScope()`)
-- **Collect flows** in Compose using `collectAsState()` or `collectAsStateWithLifecycle()`
-
----
-
-## UserPreferences (DataStore) — To Be Implemented
-
-All user settings must go through `UserPreferences.kt`. Never use SharedPreferences.
-
-```kotlin
-// Keys to define in UserPreferences.kt
-object PreferenceKeys {
-    val DAILY_GOAL_ML = intPreferencesKey("daily_goal_ml")           // default: 2000
-    val DEFAULT_CUP_ML = intPreferencesKey("default_cup_ml")         // default: 250
-    val NOTIFICATION_INTERVAL_H = intPreferencesKey("notif_interval") // default: 2
-    val QUIET_HOURS_START = stringPreferencesKey("quiet_start")       // default: "22:00"
-    val QUIET_HOURS_END = stringPreferencesKey("quiet_end")           // default: "07:00"
-    val WAKE_TIME = stringPreferencesKey("wake_time")                 // default: "07:00"
-    val SLEEP_TIME = stringPreferencesKey("sleep_time")               // default: "22:00"
-    val UNIT_ML = booleanPreferencesKey("unit_ml")                    // true = ml, false = oz
-    val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")    // default: false
-}
-```
-
----
-
-## Notifications
-
-### Current implementation (AlarmManager — to be replaced)
-
-- `NotificationScheduler.kt` uses `AlarmManager.setInexactRepeating()` every hour
-- `AlarmReceiver` BroadcastReceiver triggers `showNotification()`
-- `BootReceiver` reschedules on device boot
-- Channel ID: `"water_reminder_channel"`
-- Fixed message: "Time for Water! Don't forget to stay hydrated."
-
-### Target implementation (WorkManager)
-
-**Never use AlarmManager or Handler for notifications.** Use WorkManager exclusively.
-
-```kotlin
-class ReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
-    override suspend fun doWork(): Result {
-        val prefs = UserPreferences(applicationContext)
-        if (prefs.isQuietHours()) return Result.success()
-        if (prefs.isDailyGoalAchieved()) return Result.success()
-        showNotification()
-        return Result.success()
-    }
-}
-```
-
-When migrating:
-1. Remove `NotificationScheduler.kt`, `AlarmReceiver`, and `BootReceiver`
-2. Remove `SCHEDULE_EXACT_ALARM` permission from manifest
-3. Remove exact alarm permission check from `PermissionWrapper`
-4. Add WorkManager dependency
-5. Schedule `PeriodicWorkRequest` on app start
-6. Add quiet hours check from UserPreferences
-
----
-
-## UI Rules
-
-- Use **Material Design 3** components exclusively (not Material 2)
-- Enable **Dynamic Color** on Android 12+ with fallback to app theme on older versions (already implemented in `Theme.kt`)
-- **Never hardcode colors** — use `MaterialTheme.colorScheme.*` in Compose
-- All user-facing strings should be in `res/values/strings.xml` — minimize hardcoded strings in Kotlin
-- Dark mode must work via Material 3 theme attributes (already set up)
+- All DB ops: `Flow` or `suspend` — never on main thread
+- All ViewModel ops: `viewModelScope`
+- Collect flows in Compose: `collectAsState()` or `collectAsStateWithLifecycle()`
 
 ---
 
 ## Security & Build
 
 - **Never commit** `keystore.jks`, `keystore.properties`, `local.properties`, `google-services.json`
-- These must be in `.gitignore` — verify before every commit
-- CI/CD must use **release build** (`assembleRelease`), not debug
-- Signing keys stored as **GitHub Actions secrets** only
-- APK distributed publicly must always be a **signed release build**
-
-```
-# .gitignore — must contain:
-*.jks
-*.keystore
-keystore.properties
-local.properties
-google-services.json
-```
+- CI/CD: debug APK via GitHub Actions (already configured in `.github/workflows/build-apk.yml`)
+- Release: signing keys as GitHub Actions secrets only
 
 ---
 
 ## Prioritized Task List
 
-Work through these in order. Each phase builds on the previous.
+Phases 0 and 1 are **DONE**. Continue from Phase 2.
 
 ---
 
-### PHASE 0 — Code Cleanup (Prerequisites)
+### ✅ PHASE 0 — Code Cleanup (DONE)
+- [x] 0.1 Split MainActivity.kt
+- [x] 0.2 Split WaterRepository.kt
+- [x] 0.3 Fix ViewModel scope
+- [x] 0.4 Move strings to strings.xml
 
-- [ ] **Clean 0.1** — Split `MainActivity.kt` into separate files
-  - Extract `WaterReminderApplication` to its own file
-  - Extract `WaterViewModel` + `WaterViewModelFactory` to `ui/home/WaterViewModel.kt`
-  - Extract `AnimatedWaterBottle` composable to `ui/components/AnimatedWaterBottle.kt`
-  - Extract `BarChart` + `ChartData` to `ui/components/BarChart.kt`
-  - Extract screen composables to `ui/screens/` (TodayScreen, StatisticsScreen)
-  - Keep `MainActivity` thin — only `setContent { }` call
-
-- [ ] **Clean 0.2** — Split `WaterRepository.kt` into proper structure
-  - Move `WaterIntake` entity to `data/db/entity/WaterIntake.kt`
-  - Move `WaterIntakeDao` to `data/db/dao/WaterIntakeDao.kt`
-  - Move `AppDatabase` to `data/db/AppDatabase.kt`
-  - Keep `WaterRepository` in `data/repository/WaterRepository.kt`
-
-- [ ] **Clean 0.3** — Fix ViewModel scope
-  - Replace `MainScope()` with `viewModelScope` in `WaterViewModel`
-  - Remove manual `coroutineScope` field
-
-- [ ] **Clean 0.4** — Move hardcoded strings to `strings.xml`
-  - "Today", "Week", "Month" tab labels
-  - "I drank a glass (250ml)" button text
-  - "Time for Water!" notification title/text
-  - Permission screen titles and descriptions
-  - "No data available for this period yet."
+### ✅ PHASE 1 — Core Features (DONE)
+- [x] 1.1 Custom volume input + quick-select chips
+- [x] 1.2 Configurable daily goal + DataStore + congrats Snackbar
+- [x] 1.3 DrinkType selector + Room migration v1→v2 + hydration factor
+- [x] 1.4 Migrate notifications to WorkManager + quiet hours
 
 ---
 
-### PHASE 1 — Core Features
+### 🔴 PHASE 2 — UX Overhaul (Do Next)
 
-- [ ] **Fix 1.1** — Replace fixed 250ml with custom volume input
-  - Add `amountMl: Int` parameter to `addWaterIntake()` instead of hardcoded 250
-  - Add quick-select buttons: 100 / 200 / 250 / 330 / 500 / 750ml
-  - Add "Custom" option that opens a number input dialog
-  - Save last-used amount to UserPreferences as `DEFAULT_CUP_ML`
+- [ ] **Fix 2.1** — Replace water bottle with circular progress ring
+  - Delete `AnimatedWaterBottle.kt`
+  - Create `HydrationProgressRing.kt` composable using `CircularProgressIndicator`
+  - Show consumed ml (large) + goal ml + percentage in center
+  - Animate progress with `animateFloatAsState`
 
-- [ ] **Fix 1.2** — Add configurable daily goal
-  - Add DataStore dependency and implement `UserPreferences.kt`
-  - Add `DAILY_GOAL_ML` preference (default: 2000ml)
-  - Replace hardcoded `goal = 2000` in `TodayScreen` with preference value
-  - Show progress: `achievedMl / goalMl` with percentage and remaining ml
-  - Show congratulations Snackbar when goal is first reached for the day
+- [ ] **Fix 2.2** — New app icon
+  - Create `ic_launcher_foreground.xml`: white glass with white downward drop
+  - Create `ic_launcher_background.xml`: solid blue (`#1565C0`)
+  - Update `AndroidManifest.xml` to use adaptive icon
+  - Add `mipmap/ic_launcher.xml` adaptive icon wrapper
 
-- [ ] **Fix 1.3** — Add DrinkType selector
-  - Add `DrinkType` enum (see Data Models section)
-  - Create Room migration v1 -> v2 (add drinkType column with default WATER)
-  - Add type picker (icon grid or horizontal scroll chips)
-  - Apply `hydrationFactor` when calculating effective hydration
-  - Show drink type emoji in today's log list
+- [ ] **Fix 2.3** — Drink-type-specific amount presets
+  - Create `DrinkPreset` data class + `DRINK_TYPE_PRESETS` map (see spec above)
+  - When user selects a DrinkType chip, the amount chips below update to that type's presets
+  - Show preset label (e.g. "Espresso") instead of just "30ml" in Today's log
+  - Add `presetLabel: String?` field to `WaterIntake` entity → Room migration v2→v3
+  - Save last selected DrinkType to UserPreferences as `LAST_SELECTED_DRINK_TYPE`
 
-- [ ] **Fix 1.4** — Migrate notifications to WorkManager
-  - Add WorkManager dependency
-  - Implement `ReminderWorker` with quiet hours check
-  - Schedule with `PeriodicWorkRequest` on app start
-  - Remove `NotificationScheduler.kt`, `AlarmReceiver`, `BootReceiver`
-  - Remove `SCHEDULE_EXACT_ALARM` permission
-  - Cancel and reschedule when interval changes in Settings
-
----
-
-### PHASE 2 — Feature Additions
-
-- [ ] **Feat 2.1** — Settings Screen
+- [ ] **Fix 2.4** — Onboarding flow
   - Add Compose Navigation dependency
-  - Add navigation: Home <-> Settings
-  - Settings items:
-    - Daily goal (ml input)
-    - Default cup size (ml input or preset selector)
-    - Notification interval (1h / 1.5h / 2h / 3h / Off)
-    - Quiet hours (time picker: start + end)
-    - Wake time / sleep time
-    - Unit toggle: ml <-> oz
-    - Reset today's data (with confirmation dialog)
-    - Export data as CSV
+  - Create `OnboardingScreen.kt` with 4 steps (Welcome, Goal, Wake/Sleep, Notifications)
+  - In `MainActivity`: check `ONBOARDING_DONE` → route to Onboarding or MainScreen
+  - Compute notification interval from goal + wake/sleep times, save to UserPreferences
+  - Request notification permission on Screen 4 (remove from `PermissionWrapper`)
+  - On finish: schedule WorkManager with computed interval, set `ONBOARDING_DONE = true`
 
-- [ ] **Feat 2.2** — Streak counter
-  - Calculate streak from Room DB: consecutive days where `achievedMl >= goalMl`
-  - Show current streak and best streak on TodayScreen
-  - Show streak in Statistics tab
-  - Show calendar heatmap view (monthly): green = goal met, red = missed, grey = no data
-
-- [ ] **Feat 2.3** — Statistics improvements
-  - Replace manual Canvas bar chart with Vico library
-  - Add color coding per bar (red < 50%, yellow 50-79%, green >= 80% of goal)
-  - Add monthly average line
-  - Add per-drink-type breakdown (pie chart or stacked bar)
-
-- [ ] **Feat 2.4** — Smart notification content
-  - Vary notification message based on time of day and progress
-  - Morning (07:00-10:00): "Start your day hydrated!"
-  - Afternoon (12:00-16:00): "Halfway through the day — how's your water intake?"
-  - Evening (18:00-21:00): "Almost done! You need X ml to reach your goal."
-  - Add quick-action button in notification: "+250ml" via PendingIntent -> BroadcastReceiver
+- [ ] **Fix 2.5** — Smart notification interval
+  - Update `ReminderScheduler` to use `NOTIFICATION_INTERVAL_MIN` from UserPreferences
+  - Update `ReminderWorker` to check wake/sleep window (replace current quiet hours logic)
+  - Update `ReminderWorker` to skip if daily goal already reached
+  - Add contextual notification messages based on progress percentage (see spec above)
 
 ---
 
-### PHASE 3 — Polish & Distribution
+### 🟡 PHASE 3 — Feature Additions
 
-- [ ] **Feat 3.1** — Home Screen Widget
-  - Use Jetpack Glance (Compose for widgets) instead of AppWidgetProvider XML
-  - Small (2x1): Progress text + "Add 250ml" button
-  - Large (4x2): Progress ring + 3 quick-add buttons + today's log count
-  - Update widget after every drink entry
+- [ ] **Feat 3.1** — Settings Screen
+  - Compose Navigation: Home ↔ Settings
+  - Items: daily goal, wake/sleep times, notification interval (auto or manual), unit ml/oz
+  - Reset today's data (confirmation dialog)
+  - Re-trigger onboarding (for goal recalculation)
+  - When goal or wake/sleep times change → recompute interval → reschedule WorkManager
 
-- [ ] **Feat 3.2** — Health Connect integration
-  - Add `connect-client` dependency
-  - Add permission request flow (only if user enables in Settings)
-  - Sync each `DrinkEntry` to Health Connect as `HydrationRecord`
-  - Handle unavailability gracefully
+- [ ] **Feat 3.2** — Streak counter
+  - Consecutive days where `effectiveMl >= goalMl`
+  - Show current streak + best streak on TodayScreen
+  - Calendar heatmap on Statistics tab: green=met, red=missed, grey=no data
 
-- [ ] **Feat 3.3** — Onboarding flow
-  - Show only on first launch (`ONBOARDING_DONE == false`)
-  - Screen 1: Welcome + app description
-  - Screen 2: Set daily goal (with weight-based calculator option)
-  - Screen 3: Set wake time + sleep time
-  - Screen 4: Enable notifications (request permission here)
-  - Mark `ONBOARDING_DONE = true` on finish
+- [ ] **Feat 3.3** — Statistics improvements
+  - Replace manual Canvas BarChart with Vico library
+  - Color coding: red < 50%, yellow 50–79%, green ≥ 80%
+  - Monthly average line
+  - Per-drink-type breakdown (stacked bar or pie)
 
-- [ ] **Feat 3.4** — Play Store preparation
-  - Migrate package from `com.example.waterreminder` to `com.danbutuc.waterreminder`
-  - Bump `targetSdkVersion` to 35
-  - Verify all permissions in manifest are necessary and declared
-  - Add `android:exported` to all Activities, Receivers, Services
-  - Enable R8/ProGuard (`isMinifyEnabled = true`) for release
-  - Generate signed release AAB with `./gradlew bundleRelease`
-  - Write Play Store listing text in `fastlane/metadata/android/en-US/`
+- [ ] **Feat 3.4** — Smart notification messages (already specced in Notifications section)
 
 ---
 
-### PHASE 4 — Repository Cleanup
+### 🟢 PHASE 4 — Polish & Distribution
 
-- [ ] **Repo 4.1** — Replace `README.md` with proper project documentation
-- [ ] **Repo 4.2** — Add `CHANGELOG.md` with all past releases documented
-- [ ] **Repo 4.3** — Add `LICENSE` file (MIT)
-- [ ] **Repo 4.4** — Add `CONTRIBUTING.md`
-- [ ] **Repo 4.5** — Add `.github/ISSUE_TEMPLATE/bug_report.md` and `feature_request.md`
-- [ ] **Repo 4.6** — Update CI/CD workflow to use signed release APK
-- [ ] **Repo 4.7** — Add screenshots to `docs/screenshots/` for README
+- [ ] **Feat 4.1** — Home Screen Widget (Jetpack Glance)
+  - Small (2×1): circular progress ring + quick-add button
+  - Large (4×2): ring + drink type selector + 3 presets
+
+- [ ] **Feat 4.2** — Health Connect integration (optional, permission-based)
+
+- [ ] **Feat 4.3** — Play Store preparation
+  - Migrate package to `com.danbutuc.waterreminder`
+  - Bump targetSdk to 35, enable R8
+  - Signed AAB via `./gradlew bundleRelease`
+
+---
+
+### 📁 PHASE 5 — Repository Cleanup
+
+- [ ] README, CHANGELOG, LICENSE, CONTRIBUTING, issue templates, screenshots
 
 ---
 
@@ -463,51 +444,34 @@ Work through these in order. Each phase builds on the previous.
 
 - Never use `SharedPreferences` — use `DataStore` only
 - Never use `AlarmManager` for notifications — use `WorkManager` only
-- Never hardcode colors in Kotlin — use `MaterialTheme.colorScheme.*`
+- Never hardcode colors — use `MaterialTheme.colorScheme.*`
 - Never make DB calls on the main thread
 - Never commit or expose `keystore.jks` or `keystore.properties`
-- Never use `GlobalScope` — use `viewModelScope` or coroutine scope tied to lifecycle
+- Never use `GlobalScope` — use `viewModelScope`
 - Never use `LiveData` for new code — use `StateFlow` / `SharedFlow`
-- Never skip null safety — use `?.let`, `?: return`, or `requireNotNull`
-- Never add a dependency that conflicts with the ones listed above
-- Never use Fragment-based navigation — this is a Compose-only project
+- Never skip null safety
+- Never use Fragment-based navigation — Compose only
 - Never use `repeatOnLifecycle` — use `collectAsState()` in Compose
+- Never use the animated water bottle for progress — use circular ring
 
 ---
 
 ## Testing Requirements
 
 Every new feature must include:
-
-- **Unit test** for ViewModel logic (`test/`)
-- **Unit test** for Repository logic with in-memory Room DB
-- **Instrumentation test** for DAO queries (`androidTest/`)
-
-```kotlin
-// In-memory Room DB for tests
-@Before
-fun setup() {
-    db = Room.inMemoryDatabaseBuilder(
-        ApplicationProvider.getApplicationContext(),
-        AppDatabase::class.java
-    ).allowMainThreadQueries().build()
-    dao = db.waterIntakeDao()
-}
-```
+- Unit test for ViewModel logic (`test/`)
+- Unit test for Repository with in-memory Room DB
+- Instrumentation test for DAO queries (`androidTest/`)
 
 ---
 
 ## Commit Convention
 
-Use Conventional Commits format:
-
 ```
-feat: add custom volume input
-fix: notification not firing after quiet hours
-refactor: migrate SharedPreferences to DataStore
-chore: update dependencies to latest stable
-docs: update README with new screenshots
-test: add unit tests for WaterRepository
+feat: add onboarding flow with goal and wake/sleep setup
+fix: replace water bottle with circular progress ring
+refactor: drink-type-specific amount presets
+chore: update dependencies
 ```
 
 ---

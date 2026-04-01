@@ -8,16 +8,28 @@ import com.example.waterreminder.data.db.AppDatabase
 import com.example.waterreminder.data.preferences.UserPreferences
 import com.example.waterreminder.data.repository.WaterRepository
 import com.example.waterreminder.workers.ReminderScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class WaterReminderApplication : android.app.Application() {
     val database by lazy { AppDatabase.getDatabase(this) }
     val repository by lazy { WaterRepository(database.waterIntakeDao()) }
     val userPreferences by lazy { UserPreferences(this) }
 
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        ReminderScheduler.schedule(this)
+        // Observe interval changes and keep the WorkManager schedule in sync.
+        // This also handles the initial schedule on app start.
+        appScope.launch {
+            userPreferences.notificationIntervalMin.collect { intervalMin ->
+                ReminderScheduler.schedule(this@WaterReminderApplication, intervalMin)
+            }
+        }
     }
 
     private fun createNotificationChannel() {
