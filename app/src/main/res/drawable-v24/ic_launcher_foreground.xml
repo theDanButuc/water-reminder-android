@@ -28,11 +28,10 @@
     <path
         android:fillColor="#1976D2"
         android:pathData="M54,15 Q52,12 54,8 Q56,12 54,15 Z" />
-    <circle
+    <!-- Circle water drop -->
+    <path
         android:fillColor="#1976D2"
-        android:cx="54"
-        android:cy="22"
-        android:r="4" />
+        android:pathData="M54,18 A4,4 0 1,0 54.001,22 A4,4 0 1,0 54,18" />
 
     <!-- Light reflection on glass -->
     <path
