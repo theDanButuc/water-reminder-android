@@ -5,19 +5,41 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Glass body (trapezoid - wider at top) -->
+    <!-- Glass body (outline) -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M32,26 L36,80 Q36,86 42,86 L66,86 Q72,86 72,80 L76,26 Z" />
+
+    <!-- Glass rim top (thicker) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M36,32 L30,80 Q30,84 34,84 L74,84 Q78,84 78,80 L72,32 Z" />
+        android:pathData="M32,26 L76,26 L74,32 L34,32 Z" />
 
-    <!-- Glass rim -->
+    <!-- Water inside glass -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M34,32 L74,32 Q76,32 76,30 L76,28 Q76,26 74,26 L34,26 Q32,26 32,28 L32,30 Q32,32 34,32 Z" />
+        android:fillColor="#B3E5FC"
+        android:pathData="M38,58 Q46,52 54,58 Q62,64 70,58 L70,80 Q70,85 66,85 L42,85 Q38,85 38,80 Z" />
 
-    <!-- Water drop (pointing down) -->
+    <!-- Water drop falling (above glass) -->
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M54,40 Q62,53 62,59 A8,8 0 0,1 46,59 Q46,53 54,40 Z" />
+        android:fillColor="#1976D2"
+        android:pathData="M54,15 Q52,12 54,8 Q56,12 54,15 Z" />
+    <circle
+        android:fillColor="#1976D2"
+        android:cx="54"
+        android:cy="22"
+        android:r="4" />
+
+    <!-- Light reflection on glass -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M42,30 Q42,45 42,70" />
 
 </vector>
