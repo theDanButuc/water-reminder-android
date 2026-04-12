@@ -8,6 +8,7 @@ import com.example.waterreminder.data.db.entity.WaterIntake
 import com.example.waterreminder.data.preferences.UserPreferences
 import com.example.waterreminder.data.repository.WaterRepository
 import com.example.waterreminder.ui.components.ChartData
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,6 +17,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -35,14 +38,28 @@ class WaterViewModel(
         private val monthDayFormat = SimpleDateFormat("d", Locale.getDefault())
     }
 
-    private val todayStart = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    // Flow that emits a new day-start at midnight, so "today" always stays correct
+    // even if the app is left open overnight.
+    private val todayStartFlow: StateFlow<Long> = flow {
+        while (true) {
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            emit(cal.timeInMillis)
+            // Sleep until next midnight + 1s buffer
+            val nextMidnight = cal.timeInMillis + 24 * 60 * 60 * 1000L
+            delay(nextMidnight - System.currentTimeMillis() + 1000L)
+        }
+    }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis)
 
-    private val weekStart = Calendar.getInstance().apply {
+    private val weekStart: Long = Calendar.getInstance().apply {
         firstDayOfWeek = Calendar.MONDAY
         set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
         set(Calendar.HOUR_OF_DAY, 0)
@@ -51,7 +68,7 @@ class WaterViewModel(
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
-    private val monthStart = Calendar.getInstance().apply {
+    private val monthStart: Long = Calendar.getInstance().apply {
         set(Calendar.DAY_OF_MONTH, 1)
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -72,10 +89,14 @@ class WaterViewModel(
     private val _selectedDrinkType = MutableStateFlow(DrinkType.WATER)
     val selectedDrinkType: StateFlow<DrinkType> = _selectedDrinkType
 
-    val todayEntries: StateFlow<List<WaterIntake>> = repository.getTodayIntake(todayStart)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val todayEntries: StateFlow<List<WaterIntake>> = todayStartFlow
+        .flatMapLatest { start -> repository.getTodayIntake(start) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val todayIntake: StateFlow<Int> = repository.getTodayIntake(todayStart)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val todayIntake: StateFlow<Int> = todayStartFlow
+        .flatMapLatest { start -> repository.getTodayIntake(start) }
         .map { list -> list.sumOf { it.effectiveAmount } }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
@@ -107,6 +128,13 @@ class WaterViewModel(
                 DrinkType.valueOf(userPreferences.lastSelectedDrinkType.first())
             }.getOrDefault(DrinkType.WATER)
             _selectedDrinkType.value = lastType
+        }
+
+        // Reset goal-reached flag when the calendar day changes (app open past midnight)
+        viewModelScope.launch {
+            todayStartFlow.collect {
+                goalAlreadyReachedToday = false
+            }
         }
 
         // Watch for goal reached
@@ -155,7 +183,7 @@ class WaterViewModel(
 
     fun resetTodayData() {
         viewModelScope.launch {
-            repository.deleteTodayIntake(todayStart)
+            repository.deleteTodayIntake(todayStartFlow.value)
             goalAlreadyReachedToday = false
         }
     }
@@ -206,10 +234,15 @@ class WaterViewModel(
                     temp = 1
                 } else {
                     // Check if consecutive with previous day
-                    iterCal.time = dayFormat.parse(sortedDays[i - 1])!!
-                    iterCal.add(Calendar.DAY_OF_YEAR, 1)
-                    val expectedNext = dayFormat.format(iterCal.time)
-                    temp = if (expectedNext == sortedDays[i]) temp + 1 else 1
+                    val prevDate = dayFormat.parse(sortedDays[i - 1])
+                    if (prevDate != null) {
+                        iterCal.time = prevDate
+                        iterCal.add(Calendar.DAY_OF_YEAR, 1)
+                        val expectedNext = dayFormat.format(iterCal.time)
+                        temp = if (expectedNext == sortedDays[i]) temp + 1 else 1
+                    } else {
+                        temp = 1
+                    }
                 }
                 if (temp > best) best = temp
             } else {
