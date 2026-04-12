@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -27,6 +28,12 @@ class WaterViewModel(
     private val repository: WaterRepository,
     private val userPreferences: UserPreferences
 ) : ViewModel() {
+
+    companion object {
+        private val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        private val weekDayFormat = SimpleDateFormat("E", Locale.getDefault())
+        private val monthDayFormat = SimpleDateFormat("d", Locale.getDefault())
+    }
 
     private val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
@@ -70,6 +77,7 @@ class WaterViewModel(
 
     val todayIntake: StateFlow<Int> = repository.getTodayIntake(todayStart)
         .map { list -> list.sumOf { it.effectiveAmount } }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     private val _goalReachedEvent = MutableSharedFlow<Unit>()
@@ -166,19 +174,16 @@ class WaterViewModel(
 
     private fun computeStreaks(intake: List<WaterIntake>, goal: Int): StreakData {
         if (goal <= 0) return StreakData(0, 0)
-        val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val dailyTotals = intake
             .groupBy { dayFormat.format(Date(it.timestamp)) }
             .mapValues { (_, entries) -> entries.sumOf { it.effectiveAmount } }
 
         if (dailyTotals.isEmpty()) return StreakData(0, 0)
 
-        val today = dayFormat.format(Date())
-        val cal = Calendar.getInstance()
+        val checkCal = Calendar.getInstance()
 
         // Current streak: count backwards from today
         var current = 0
-        val checkCal = Calendar.getInstance()
         while (true) {
             val dayStr = dayFormat.format(checkCal.time)
             if ((dailyTotals[dayStr] ?: 0) >= goal) {
@@ -218,17 +223,16 @@ class WaterViewModel(
     private fun transformToWeeklyChartData(intakeList: List<WaterIntake>): List<ChartData> {
         val calendar = Calendar.getInstance()
         calendar.firstDayOfWeek = Calendar.MONDAY
-        val dayFormat = SimpleDateFormat("E", Locale.getDefault())
 
         val dayNames = (0..6).map {
             calendar.time = Date(weekStart)
             calendar.add(Calendar.DAY_OF_WEEK, it)
-            dayFormat.format(calendar.time)
+            weekDayFormat.format(calendar.time)
         }
 
         val weeklyData = dayNames.associateWith { 0 }.toMutableMap()
         intakeList.forEach { intake ->
-            val day = dayFormat.format(Date(intake.timestamp))
+            val day = weekDayFormat.format(Date(intake.timestamp))
             if (weeklyData.containsKey(day)) {
                 weeklyData[day] = (weeklyData[day] ?: 0) + intake.effectiveAmount
             }
@@ -242,10 +246,9 @@ class WaterViewModel(
         val maxDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
 
         val monthlyData = (1..maxDays).associate { it.toString() to 0 }.toMutableMap()
-        val dayFormat = SimpleDateFormat("d", Locale.getDefault())
 
         intakeList.forEach { intake ->
-            val dayOfMonth = dayFormat.format(Date(intake.timestamp))
+            val dayOfMonth = monthDayFormat.format(Date(intake.timestamp))
             monthlyData[dayOfMonth] = (monthlyData[dayOfMonth] ?: 0) + intake.effectiveAmount
         }
         return monthlyData.map { ChartData(it.key, it.value) }

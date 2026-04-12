@@ -7,5 +7,7 @@ enum class DrinkType(val hydrationFactor: Float, val emoji: String, val displayN
     JUICE(0.85f, "\uD83E\uDDC3", "Juice"),
     MILK(0.9f, "\uD83E\uDD5B", "Milk"),
     ENERGY_DRINK(0.7f, "\u26A1", "Energy"),
+    BEER(0.85f, "\uD83C\uDF3B", "Beer"),
+    WINE(0.75f, "\uD83C\uDF77", "Wine"),
     OTHER(0.8f, "\uD83E\uDD64", "Other")
 }

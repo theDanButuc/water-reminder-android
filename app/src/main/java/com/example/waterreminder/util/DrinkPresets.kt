@@ -50,6 +50,19 @@ val DRINK_TYPE_PRESETS: Map<DrinkType, List<DrinkPreset>> = mapOf(
         DrinkPreset("Bottle", 500)
     ),
 
+    DrinkType.BEER to listOf(
+        DrinkPreset("Small", 330),
+        DrinkPreset("0.5L", 500),
+        DrinkPreset("1L", 1000),
+        DrinkPreset("2L", 2000)
+    ),
+
+    DrinkType.WINE to listOf(
+        DrinkPreset("Glass", 150),
+        DrinkPreset("Carafe", 500),
+        DrinkPreset("Bottle", 750)
+    ),
+
     DrinkType.OTHER to listOf(
         DrinkPreset("Small", 100),
         DrinkPreset("Medium", 250),
