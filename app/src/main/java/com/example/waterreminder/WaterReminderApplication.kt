@@ -11,6 +11,7 @@ import com.example.waterreminder.workers.ReminderScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 class WaterReminderApplication : android.app.Application() {
@@ -26,9 +27,13 @@ class WaterReminderApplication : android.app.Application() {
         // Observe interval changes and keep the WorkManager schedule in sync.
         // This also handles the initial schedule on app start.
         appScope.launch {
-            userPreferences.notificationIntervalMin.collect { intervalMin ->
-                ReminderScheduler.schedule(this@WaterReminderApplication, intervalMin)
-            }
+            // distinctUntilChanged ensures WorkManager is only rescheduled when the
+            // interval actually changes, not on every app start emission.
+            userPreferences.notificationIntervalMin
+                .distinctUntilChanged()
+                .collect { intervalMin ->
+                    ReminderScheduler.schedule(this@WaterReminderApplication, intervalMin)
+                }
         }
     }
 
