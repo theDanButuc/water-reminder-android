@@ -224,9 +224,10 @@ fun TodayScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = entry.type.emoji, fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -236,10 +237,23 @@ fun TodayScreen(
                             )
                         }
                         if (entry.type.hydrationFactor < 1.0f) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "${entry.amount}ml",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = stringResource(R.string.effective_amount, entry.effectiveAmount),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
                             Text(
-                                text = stringResource(R.string.effective_amount, entry.effectiveAmount),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "${entry.amount}ml",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
