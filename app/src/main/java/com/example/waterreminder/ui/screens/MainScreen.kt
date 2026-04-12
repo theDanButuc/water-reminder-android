@@ -206,6 +206,7 @@ fun MainScreen(viewModel: WaterViewModel) {
 
             HorizontalPager(
                 state = pagerState,
+                key = { it },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
