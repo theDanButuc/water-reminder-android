@@ -62,7 +62,12 @@ fun HydrationProgressRing(consumed: Int, goal: Int) {
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "/ ${goal}ml",
+                text = "effective",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "/ ${goal}ml goal",
                 fontSize = 16.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

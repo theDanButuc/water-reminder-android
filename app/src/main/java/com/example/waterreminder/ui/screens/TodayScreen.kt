@@ -171,8 +171,18 @@ fun TodayScreen(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 4.dp)
             )
+            if (selectedDrinkType.hydrationFactor < 1.0f) {
+                Text(
+                    text = "Hydration factor ${selectedDrinkType.hydrationFactor} · only ${(selectedDrinkType.hydrationFactor * 100).toInt()}% counts toward your goal",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -186,7 +196,7 @@ fun TodayScreen(
                             selectedPreset = preset
                             onAddDrink(preset.amountMl, preset.label)
                         },
-                        label = { Text(preset.label) },
+                        label = { Text("${preset.label} · ${preset.amountMl}ml") },
                         modifier = Modifier.padding(horizontal = 4.dp),
                         colors = FilterChipDefaults.elevatedFilterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
