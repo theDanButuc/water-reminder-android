@@ -2,7 +2,7 @@
 
 An app to track your daily water intake and stay hydrated throughout the day.
 
-![Water Reminder Preview](Water%20Reminder%20preview.jpg)
+<img src="Water Reminder preview.jpg" width="320"/>
 
 ## Download APK
 
